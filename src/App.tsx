@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare } from 'lucide-react';
 import { useAppStore } from './store/appStore';
@@ -34,6 +34,7 @@ export default function App() {
           loop
           muted
           playsInline
+          preload="metadata"
           className="absolute inset-0 w-full h-full object-cover"
         />
       ) : (
@@ -67,7 +68,25 @@ function OnboardingView() {
   const providers = useSettingsStore((s) => s.providers);
 
   const models = useMemo(() => getActiveModels(providers), [providers]);
-  const recent = sessions.slice(0, 10);
+  const recent = useMemo(() => [...sessions].filter((s) => !s.archived).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10), [sessions]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [hovering, setHovering] = useState(false);
+
+  useEffect(() => {
+    if (!scrollRef.current || hovering) return;
+    const el = scrollRef.current;
+    let frame: number;
+    const step = () => {
+      el.scrollLeft += 0.3;
+      if (el.scrollLeft >= el.scrollWidth - el.clientWidth) {
+        el.scrollLeft = 0;
+      }
+      frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
+  }, [hovering, recent]);
 
   const handleCardClick = (session: ChatSession) => {
     setActiveSession(session.id);
@@ -135,7 +154,18 @@ function OnboardingView() {
           transition={{ duration: 0.5, delay: 0.7 }}
           className="w-full max-w-2xl mt-6"
         >
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+          <div
+            ref={scrollRef}
+            onMouseEnter={() => setHovering(true)}
+            onMouseLeave={() => setHovering(false)}
+            onWheel={(e) => {
+              if (scrollRef.current && e.deltaY !== 0) {
+                e.preventDefault();
+                scrollRef.current.scrollLeft += e.deltaY;
+              }
+            }}
+            className="flex gap-3 overflow-x-auto pb-2 scrollbar-none"
+          >
             {recent.map((session, i) => (
               <motion.button
                 key={session.id}

@@ -1,0 +1,68 @@
+import { create } from 'zustand';
+import type { Memory } from '../types';
+
+const STORAGE_KEY = 'chpio-memories';
+
+function loadMemories(): Memory[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveMemories(memories: Memory[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(memories));
+}
+
+interface MemoryState {
+  memories: Memory[];
+  createMemory: (content: string, tags: string[]) => string;
+  updateMemory: (id: string, updates: Partial<Pick<Memory, 'content' | 'tags'>>) => void;
+  deleteMemory: (id: string) => void;
+  searchMemories: (query: string) => Memory[];
+}
+
+export const useMemoryStore = create<MemoryState>((set, get) => ({
+  memories: loadMemories(),
+
+  createMemory: (content, tags) => {
+    const id = crypto.randomUUID();
+    const memory: Memory = {
+      id,
+      content,
+      tags,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    const memories = [memory, ...get().memories];
+    saveMemories(memories);
+    set({ memories });
+    return id;
+  },
+
+  updateMemory: (id, updates) => {
+    const memories = get().memories.map((m) =>
+      m.id === id ? { ...m, ...updates, updatedAt: Date.now() } : m
+    );
+    saveMemories(memories);
+    set({ memories });
+  },
+
+  deleteMemory: (id) => {
+    const memories = get().memories.filter((m) => m.id !== id);
+    saveMemories(memories);
+    set({ memories });
+  },
+
+  searchMemories: (query) => {
+    if (!query.trim()) return get().memories;
+    const q = query.toLowerCase();
+    return get().memories.filter(
+      (m) =>
+        m.content.toLowerCase().includes(q) ||
+        m.tags.some((t) => t.toLowerCase().includes(q))
+    );
+  },
+}));

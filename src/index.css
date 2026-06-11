@@ -90,3 +90,23 @@
     display: none;
   }
 }
+
+.katex-inline {
+  font-size: 1em;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.katex-block {
+  font-size: 1.05em;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.katex .mord,
+.katex .mbin,
+.katex .mrel,
+.katex .mopen,
+.katex .mclose,
+.katex .mpunct,
+.katex .mop {
+  color: inherit;
+}

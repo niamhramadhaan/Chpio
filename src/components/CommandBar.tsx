@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Paperclip, Globe, Code2, Brain, ArrowUp, ChevronDown, Search, X } from 'lucide-react';
+import { Paperclip, Globe, Code2, Brain, ArrowUp, ChevronDown, Search, X, Square } from 'lucide-react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { useAppStore } from '../store/appStore';
 import { useChatStore } from '../store/chatStore';
@@ -9,11 +9,24 @@ import { streamChat } from '../services/providers';
 import { getActiveModels, stripProviderPrefix } from '../utils/models';
 import { PortalDropdown } from './ui/PortalDropdown';
 
+function parseChatError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : 'Failed to get response';
+  if (msg.includes('401')) return 'Invalid API key. Check your key in Settings → Providers.';
+  if (msg.includes('403')) return 'Access denied. Your API key may not have permission for this model.';
+  if (msg.includes('429')) return 'Rate limit exceeded. Try again shortly or switch models.';
+  if (msg.includes('402')) return 'Payment required. Add credits to your provider account.';
+  if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Network request failed'))
+    return 'Could not reach provider. Check your connection.';
+  return msg;
+}
+
 const LOTTIE_URL = 'https://lottie.host/3bd7f01f-14d7-4c9b-86a2-5024f6cb44f3/eUurreIWqI.lottie';
 
 export function CommandBar() {
   const { view, setView, setActiveFeature } = useAppStore();
-  const { createSession, addMessage, updateLastAssistantMessage, setStreaming, isStreaming } = useChatStore();
+  const { createSession, addMessage, updateLastAssistantMessage, updateLastAssistantThinking, setStreaming, stopStreaming, isStreaming } = useChatStore();
+  const activeSessionId = useChatStore((s) => s.activeSessionId);
+  const sessions = useChatStore((s) => s.sessions);
   const { defaultModelId, providers } = useSettingsStore();
   const selectedModelId = useSettingsStore((s) => s.selectedModelId);
   const setSelectedModel = useSettingsStore((s) => s.setSelectedModel);
@@ -24,18 +37,22 @@ export function CommandBar() {
   const [showModels, setShowModels] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
   const [toggles, setToggles] = useState({ web: false, code: false, think: false });
+  const [attachedFile, setAttachedFile] = useState<{ name: string; text: string } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
 
   const activeModelId = selectedModelId || defaultModelId;
   const activeModel = models.find((m) => m.id === activeModelId);
   const isHero = view === 'onboarding';
+  const isArchived = sessions.find((s) => s.id === activeSessionId)?.archived ?? false;
 
   const handleSubmit = async () => {
-    if (!input.trim() || isStreaming) return;
+    if (!input.trim() || isStreaming || isArchived) return;
 
     const message = input.trim();
+    const fileContext = attachedFile ? `\n\n[Attached: ${attachedFile.name}]\n${attachedFile.text}` : '';
     setInput('');
+    setAttachedFile(null);
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
     }
@@ -53,7 +70,7 @@ export function CommandBar() {
     const userMsg = {
       id: crypto.randomUUID(),
       role: 'user' as const,
-      content: message,
+      content: message + fileContext,
       timestamp: Date.now(),
     };
     addMessage(sessionId, userMsg);
@@ -66,6 +83,8 @@ export function CommandBar() {
     };
     addMessage(sessionId, assistantMsg);
     setStreaming(true);
+    const controller = new AbortController();
+    useChatStore.setState({ abortController: controller });
 
     try {
       const providerId = activeModel?.providerId;
@@ -79,15 +98,24 @@ export function CommandBar() {
         ?.messages.filter((m) => m.content)
         .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })) || [];
 
-      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(modelId), chatMessages, providerId);
+      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(modelId), chatMessages, providerId, controller.signal, toggles.think);
       let accumulated = '';
+      let thinkingAccum = '';
 
       for await (const chunk of stream) {
-        accumulated += chunk;
-        updateLastAssistantMessage(sessionId, accumulated);
+        if (chunk.type === 'thinking') {
+          thinkingAccum += chunk.text;
+        } else {
+          accumulated += chunk.text;
+          updateLastAssistantMessage(sessionId, accumulated);
+        }
+      }
+      if (thinkingAccum) {
+        updateLastAssistantThinking(sessionId, thinkingAccum);
       }
     } catch (e) {
-      const errorContent = `Error: ${e instanceof Error ? e.message : 'Failed to get response'}`;
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      const errorContent = `Error: ${parseChatError(e)}`;
       updateLastAssistantMessage(sessionId, errorContent);
     } finally {
       setStreaming(false);
@@ -139,6 +167,15 @@ export function CommandBar() {
       `}
     >
       <div className="p-4">
+        {attachedFile && (
+          <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg bg-white/5 border border-white/5">
+            <Paperclip className="w-3 h-3 text-white/30 shrink-0" />
+            <span className="text-[11px] text-white/50 truncate flex-1">{attachedFile.name}</span>
+            <button onClick={() => setAttachedFile(null)} className="text-white/30 hover:text-white/60 cursor-pointer">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <motion.div
             className="w-7 h-7 shrink-0"
@@ -158,10 +195,10 @@ export function CommandBar() {
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Ask anything..."
+            placeholder={isArchived ? 'Archived conversation' : 'Ask anything...'}
             rows={1}
-            className="flex-1 bg-transparent text-white placeholder-white/40 outline-none text-base resize-none min-h-[28px] max-h-[120px] leading-normal"
-            disabled={isStreaming}
+            className={`flex-1 bg-transparent text-white placeholder-white/40 outline-none text-base resize-none min-h-[28px] max-h-[120px] leading-normal ${isArchived ? 'opacity-40 cursor-not-allowed' : ''}`}
+            disabled={isStreaming || isArchived}
           />
 
           <div ref={triggerRef}>
@@ -192,6 +229,15 @@ export function CommandBar() {
             onClick={() => {
               const fileInput = document.createElement('input');
               fileInput.type = 'file';
+              fileInput.onchange = () => {
+                const file = fileInput.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  setAttachedFile({ name: file.name, text: reader.result as string });
+                };
+                reader.readAsText(file);
+              };
               fileInput.click();
             }}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white/40 hover:text-white/60 hover:bg-white/5 transition-all cursor-pointer border border-transparent"
@@ -202,17 +248,26 @@ export function CommandBar() {
           </button>
         </div>
 
-        <button
-          onClick={handleSubmit}
-          disabled={!input.trim() || isStreaming || !activeModelId}
-          className={`w-8 h-8 flex items-center justify-center rounded-xl transition-all cursor-pointer ${
-            input.trim() && !isStreaming && activeModelId
-              ? 'bg-teal-400 text-black hover:bg-teal-300'
-              : 'bg-white/10 text-white/30'
-          } disabled:cursor-not-allowed`}
-        >
-          <ArrowUp className="w-4 h-4" />
-        </button>
+        {isStreaming ? (
+          <button
+            onClick={stopStreaming}
+            className="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all cursor-pointer"
+          >
+            <Square className="w-3.5 h-3.5" fill="currentColor" />
+          </button>
+        ) : (
+          <button
+            onClick={handleSubmit}
+            disabled={!input.trim() || !activeModelId || isArchived}
+            className={`w-8 h-8 flex items-center justify-center rounded-xl transition-all cursor-pointer ${
+              input.trim() && activeModelId && !isArchived
+                ? 'bg-teal-400 text-black hover:bg-teal-300'
+                : 'bg-white/10 text-white/30'
+            } disabled:cursor-not-allowed`}
+          >
+            <ArrowUp className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       <PortalDropdown

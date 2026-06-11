@@ -103,13 +103,17 @@ export async function fetchProviderModels(
   }));
 }
 
+export type StreamChunk = { type: 'content' | 'thinking'; text: string };
+
 export async function* streamChat(
   baseUrl: string,
   apiKey: string | undefined,
   modelId: string,
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[],
   providerId?: string,
-): AsyncGenerator<string> {
+  signal?: AbortSignal,
+  thinking?: boolean,
+): AsyncGenerator<StreamChunk> {
   const isOllama = providerId === 'ollama' || baseUrl.includes('11434');
   const isGoogle = providerId === 'google';
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -130,6 +134,7 @@ export async function* streamChat(
       model: modelId,
       messages,
       stream: true,
+      ...(thinking ? { think: true } : {}),
     });
   } else if (isGoogle) {
     url = `${baseUrl}/models/${modelId}:streamGenerateContent?alt=sse`;
@@ -139,7 +144,10 @@ export async function* streamChat(
         role: m.role === 'assistant' ? 'model' : 'user',
         parts: [{ text: m.content }],
       }));
-    body = JSON.stringify({ contents });
+    body = JSON.stringify({
+      contents,
+      ...(thinking ? { generationConfig: { thinkingConfig: { includeThoughts: true } } } : {}),
+    });
   } else {
     url = `${baseUrl}/chat/completions`;
     headers['HTTP-Referer'] = window.location.origin;
@@ -147,7 +155,7 @@ export async function* streamChat(
     body = JSON.stringify({ model: modelId, messages, stream: true });
   }
 
-  const res = await fetch(url, { method: 'POST', headers, body });
+  const res = await fetch(url, { method: 'POST', headers, body, signal });
 
   if (!res.ok) {
     const error = await res.text();
@@ -175,8 +183,10 @@ export async function* streamChat(
       if (isOllama) {
         try {
           const parsed = JSON.parse(trimmed);
+          const thinking = parsed.message?.thinking;
           const content = parsed.message?.content;
-          if (content) yield content;
+          if (thinking) yield { type: 'thinking', text: thinking };
+          if (content) yield { type: 'content', text: content };
           if (parsed.done) return;
         } catch {
           // skip
@@ -185,8 +195,13 @@ export async function* streamChat(
         if (!trimmed.startsWith('data: ')) continue;
         try {
           const parsed = JSON.parse(trimmed.slice(6));
-          const content = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (content) yield content;
+          const parts = parsed.candidates?.[0]?.content?.parts;
+          if (parts) {
+            for (const part of parts) {
+              if (part.thought && part.text) yield { type: 'thinking', text: part.text };
+              else if (part.text) yield { type: 'content', text: part.text };
+            }
+          }
         } catch {
           // skip
         }
@@ -196,8 +211,13 @@ export async function* streamChat(
         if (data === '[DONE]') return;
         try {
           const parsed = JSON.parse(data);
-          const content = parsed.choices?.[0]?.delta?.content;
-          if (content) yield content;
+          const delta = parsed.choices?.[0]?.delta;
+          if (delta) {
+            const reasoning = delta.reasoning_content ?? delta.reasoning;
+            const content = delta.content;
+            if (reasoning) yield { type: 'thinking', text: reasoning };
+            if (content) yield { type: 'content', text: content };
+          }
         } catch {
           // skip
         }

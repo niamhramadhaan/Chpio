@@ -26,6 +26,7 @@ export interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  thinking?: string;
   timestamp: number;
 }
 
@@ -75,6 +76,56 @@ export interface WallpaperOption {
   label: string;
   url: string;
   type?: 'image' | 'video';
+}
+
+export interface Memory {
+  id: string;
+  content: string;
+  tags: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Doc {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface NoteTask {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface NoteLink {
+  id: string;
+  url: string;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  tasks: NoteTask[];
+  links?: NoteLink[];
+  folderId: string;
+  archived: boolean;
+  archivedAt?: number;
+  pinned?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface NoteFolder {
+  id: string;
+  name: string;
+  archived: boolean;
+  archivedAt?: number;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export const WALLPAPERS: WallpaperOption[] = [

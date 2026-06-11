@@ -1,6 +1,6 @@
 import { Search } from 'lucide-react';
 
-export function ResearchPage() {
+export default function ResearchPage() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-white/20">
       <Search className="w-12 h-12 mb-4" />
