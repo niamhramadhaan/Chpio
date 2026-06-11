@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, ChevronDown } from 'lucide-react';
 import { useAppStore } from './store/appStore';
 import { useChatStore } from './store/chatStore';
 import { useSettingsStore } from './store/settingsStore';
@@ -72,6 +72,7 @@ function OnboardingView() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [hovering, setHovering] = useState(false);
+  const [listOpen, setListOpen] = useState(true);
 
   useEffect(() => {
     if (!scrollRef.current || hovering) return;
@@ -154,18 +155,36 @@ function OnboardingView() {
           transition={{ duration: 0.5, delay: 0.7 }}
           className="w-full max-w-2xl mt-6"
         >
-          <div
-            ref={scrollRef}
-            onMouseEnter={() => setHovering(true)}
-            onMouseLeave={() => setHovering(false)}
-            onWheel={(e) => {
-              if (scrollRef.current && e.deltaY !== 0) {
-                e.preventDefault();
-                scrollRef.current.scrollLeft += e.deltaY;
-              }
-            }}
-            className="flex gap-3 overflow-x-auto pb-2 scrollbar-none"
-          >
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={() => setListOpen(!listOpen)}
+              className="flex items-center gap-1.5 text-white/25 text-xs hover:text-white/40 transition-colors cursor-pointer"
+            >
+              <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${listOpen ? '' : '-rotate-90'}`} />
+              Recent Chats
+            </button>
+          </div>
+          <AnimatePresence>
+            {listOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="overflow-hidden"
+              >
+                <div
+                  ref={scrollRef}
+                  onMouseEnter={() => setHovering(true)}
+                  onMouseLeave={() => setHovering(false)}
+                  onWheel={(e) => {
+                    if (scrollRef.current && e.deltaY !== 0) {
+                      e.preventDefault();
+                      scrollRef.current.scrollLeft += e.deltaY;
+                    }
+                  }}
+                  className="flex gap-3 overflow-x-auto pb-2 scrollbar-none"
+                >
             {recent.map((session, i) => (
               <motion.button
                 key={session.id}
@@ -188,6 +207,9 @@ function OnboardingView() {
               </motion.button>
             ))}
           </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
 

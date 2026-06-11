@@ -31,14 +31,14 @@ export function Modal({ isOpen, onClose, children, title, className = '' }: Moda
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           onClick={onClose}
         >
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className={`relative bg-[#1A201F]/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl max-w-md w-full ${className}`}
+            className={`relative bg-[#1A201F]/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl max-w-md w-full ${className}`}
           >
             {title && (
               <div className="flex items-center justify-between px-6 pt-5 pb-0 shrink-0">

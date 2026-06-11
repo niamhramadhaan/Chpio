@@ -27,7 +27,7 @@ export function CommandBar() {
   const { createSession, addMessage, updateLastAssistantMessage, updateLastAssistantThinking, setStreaming, stopStreaming, isStreaming } = useChatStore();
   const activeSessionId = useChatStore((s) => s.activeSessionId);
   const sessions = useChatStore((s) => s.sessions);
-  const { defaultModelId, providers } = useSettingsStore();
+  const { defaultModelId, fallbackModelId, providers } = useSettingsStore();
   const selectedModelId = useSettingsStore((s) => s.selectedModelId);
   const setSelectedModel = useSettingsStore((s) => s.setSelectedModel);
 
@@ -65,7 +65,7 @@ export function CommandBar() {
     const modelId = activeModelId;
     if (!modelId) return;
 
-    const sessionId = useChatStore.getState().activeSessionId || createSession(modelId);
+    const sessionId = isHero ? createSession(modelId) : (useChatStore.getState().activeSessionId || createSession(modelId));
 
     const userMsg = {
       id: crypto.randomUUID(),
@@ -86,19 +86,20 @@ export function CommandBar() {
     const controller = new AbortController();
     useChatStore.setState({ abortController: controller });
 
-    try {
-      const providerId = activeModel?.providerId;
-      const provider = providers.find((p) => p.id === providerId);
-      const baseUrl = provider?.baseUrl || 'https://openrouter.ai/api/v1';
-      const apiKey = provider?.apiKey || undefined;
+    const doStream = async (mId: string) => {
+      const m = models.find((x) => x.id === mId);
+      const pId = m?.providerId;
+      const p = providers.find((x) => x.id === pId);
+      const baseUrl = p?.baseUrl || 'https://openrouter.ai/api/v1';
+      const apiKey = p?.apiKey || undefined;
 
       const chatMessages = useChatStore
         .getState()
         .getActiveSession()
-        ?.messages.filter((m) => m.content)
-        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })) || [];
+        ?.messages.filter((msg) => msg.content)
+        .map((msg) => ({ role: msg.role as 'user' | 'assistant', content: msg.content })) || [];
 
-      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(modelId), chatMessages, providerId, controller.signal, toggles.think);
+      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), chatMessages, pId, controller.signal, toggles.think);
       let accumulated = '';
       let thinkingAccum = '';
 
@@ -113,10 +114,22 @@ export function CommandBar() {
       if (thinkingAccum) {
         updateLastAssistantThinking(sessionId, thinkingAccum);
       }
+    };
+
+    try {
+      await doStream(modelId);
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
-      const errorContent = `Error: ${parseChatError(e)}`;
-      updateLastAssistantMessage(sessionId, errorContent);
+      if (fallbackModelId && fallbackModelId !== modelId) {
+        try {
+          await doStream(fallbackModelId);
+        } catch (e2) {
+          if (e2 instanceof DOMException && e2.name === 'AbortError') return;
+          updateLastAssistantMessage(sessionId, `Error: ${parseChatError(e2)}`);
+        }
+      } else {
+        updateLastAssistantMessage(sessionId, `Error: ${parseChatError(e)}`);
+      }
     } finally {
       setStreaming(false);
     }

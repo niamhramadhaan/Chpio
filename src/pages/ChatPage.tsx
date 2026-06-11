@@ -65,10 +65,12 @@ export function ChatPage() {
   const setStreaming = useChatStore((s) => s.setStreaming);
   const editMessage = useChatStore((s) => s.editMessage);
   const defaultModelId = useSettingsStore((s) => s.defaultModelId);
+  const fallbackModelId = useSettingsStore((s) => s.fallbackModelId);
+  const selectedModelId = useSettingsStore((s) => s.selectedModelId);
   const providers = useSettingsStore((s) => s.providers);
 
   const models = useMemo(() => getActiveModels(providers), [providers]);
-  const activeModelId = defaultModelId;
+  const activeModelId = selectedModelId || defaultModelId;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -130,22 +132,14 @@ export function ChatPage() {
     const controller = new AbortController();
     useChatStore.setState({ abortController: controller });
 
-    try {
-      const model = models.find((m) => m.id === modelId);
-      const provider = providers.find((p) => p.id === model?.providerId);
-      const baseUrl = provider?.baseUrl || 'https://openrouter.ai/api/v1';
-      const apiKey = provider?.apiKey || undefined;
-
-      const chatMessages = useChatStore
-        .getState()
-        .getActiveSession()
-        ?.messages.filter((m) => m.content)
-        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })) || [];
-
-      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(modelId), chatMessages, model?.providerId, controller.signal);
+    const doStream = async (mId: string, msgs: { role: 'user' | 'assistant' | 'system'; content: string }[]) => {
+      const m = models.find((x) => x.id === mId);
+      const p = providers.find((x) => x.id === m?.providerId);
+      const baseUrl = p?.baseUrl || 'https://openrouter.ai/api/v1';
+      const apiKey = p?.apiKey || undefined;
+      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), msgs, m?.providerId, controller.signal);
       let accumulated = '';
       let thinkingAccum = '';
-
       for await (const chunk of stream) {
         if (chunk.type === 'thinking') {
           thinkingAccum += chunk.text;
@@ -155,10 +149,33 @@ export function ChatPage() {
         }
       }
       if (thinkingAccum) updateLastAssistantThinking(sessionId, thinkingAccum);
+    };
+
+    try {
+      const chatMessages = useChatStore
+        .getState()
+        .getActiveSession()
+        ?.messages.filter((m) => m.content)
+        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })) || [];
+
+      await doStream(modelId, chatMessages);
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
-      const errorContent = `Error: ${parseChatError(e)}`;
-      updateLastAssistantMessage(sessionId, errorContent);
+      if (fallbackModelId && fallbackModelId !== modelId) {
+        try {
+          const chatMessages = useChatStore
+            .getState()
+            .getActiveSession()
+            ?.messages.filter((m) => m.content)
+            .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })) || [];
+          await doStream(fallbackModelId, chatMessages);
+        } catch (e2) {
+          if (e2 instanceof DOMException && e2.name === 'AbortError') return;
+          updateLastAssistantMessage(sessionId, `Error: ${parseChatError(e2)}`);
+        }
+      } else {
+        updateLastAssistantMessage(sessionId, `Error: ${parseChatError(e)}`);
+      }
     } finally {
       setStreaming(false);
     }
@@ -167,7 +184,7 @@ export function ChatPage() {
   const handleRegenerate = async (messageIndex: number) => {
     if (!session || isStreaming) return;
 
-    const modelId = session.modelId || activeModelId;
+    const modelId = selectedModelId || session.modelId || activeModelId;
     if (!modelId) return;
     const messagesBefore = session.messages.slice(0, messageIndex);
     const assistantMsg = {
@@ -182,20 +199,14 @@ export function ChatPage() {
     const controller = new AbortController();
     useChatStore.setState({ abortController: controller });
 
-    try {
-      const model = models.find((m) => m.id === modelId);
-      const provider = providers.find((p) => p.id === model?.providerId);
-      const baseUrl = provider?.baseUrl || 'https://openrouter.ai/api/v1';
-      const apiKey = provider?.apiKey || undefined;
-
-      const chatMessages = messagesBefore
-        .filter((m) => m.content)
-        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
-
-      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(modelId), chatMessages, model?.providerId, controller.signal);
+    const doStream = async (mId: string, msgs: { role: 'user' | 'assistant' | 'system'; content: string }[]) => {
+      const m = models.find((x) => x.id === mId);
+      const p = providers.find((x) => x.id === m?.providerId);
+      const baseUrl = p?.baseUrl || 'https://openrouter.ai/api/v1';
+      const apiKey = p?.apiKey || undefined;
+      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), msgs, m?.providerId, controller.signal);
       let accumulated = '';
       let thinkingAccum = '';
-
       for await (const chunk of stream) {
         if (chunk.type === 'thinking') {
           thinkingAccum += chunk.text;
@@ -205,10 +216,28 @@ export function ChatPage() {
         }
       }
       if (thinkingAccum) updateLastAssistantThinking(session.id, thinkingAccum);
+    };
+
+    try {
+      const chatMessages = messagesBefore
+        .filter((m) => m.content)
+        .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+      await doStream(modelId, chatMessages);
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
-      const errorContent = `Error: ${parseChatError(e)}`;
-      updateLastAssistantMessage(session.id, errorContent);
+      if (fallbackModelId && fallbackModelId !== modelId) {
+        try {
+          const chatMessages = messagesBefore
+            .filter((m) => m.content)
+            .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+          await doStream(fallbackModelId, chatMessages);
+        } catch (e2) {
+          if (e2 instanceof DOMException && e2.name === 'AbortError') return;
+          updateLastAssistantMessage(session.id, `Error: ${parseChatError(e2)}`);
+        }
+      } else {
+        updateLastAssistantMessage(session.id, `Error: ${parseChatError(e)}`);
+      }
     } finally {
       setStreaming(false);
     }
@@ -456,13 +485,13 @@ const UserMessage = React.memo(function UserMessage({ content, timestamp, onEdit
   if (editing) {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%]">
+        <div className="max-w-[85%] min-w-0">
           <textarea
             autoFocus
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             className="w-full text-sm leading-relaxed rounded-2xl rounded-tr-md px-4 py-3 bg-slate-900/40 backdrop-blur-lg text-white/90 border border-teal-400/30 outline-none resize-none"
-            style={{ height: 'auto', minHeight: '60px', boxSizing: 'border-box' }}
+            style={{ height: 'auto', minHeight: '60px' }}
             ref={(el) => {
               if (el && el.dataset.init !== '1') {
                 el.dataset.init = '1';
@@ -610,7 +639,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
             style={{ width: '100%', height: '100%' }}
           />
         </div>
-        <div className={`flex-1 ${editing ? '' : 'min-w-0'}`}>
+        <div className="flex-1 min-w-0">
           <div className="text-xs text-white/30 mb-1.5 font-medium">ChPio</div>
           {thinking && (
             <ThinkingBlock thinking={thinking} isStreaming={isStreaming && !content} />
@@ -622,7 +651,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
                 value={editValue}
                 onChange={(e) => setEditValue(e.target.value)}
                 className="w-full text-sm leading-relaxed rounded-2xl rounded-tl-md px-4 py-3 bg-slate-900/40 backdrop-blur-lg text-white/85 border border-teal-400/30 outline-none resize-none"
-                style={{ height: 'auto', minHeight: '80px', boxSizing: 'border-box' }}
+                style={{ height: 'auto', minHeight: '80px' }}
                 ref={(el) => {
                   if (el && el.dataset.init !== '1') {
                     el.dataset.init = '1';

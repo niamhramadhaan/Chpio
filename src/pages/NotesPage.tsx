@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FolderOpen,
@@ -13,7 +14,6 @@ import {
   Download,
   CheckSquare,
   Archive,
-  ArchiveRestore,
   Search,
   ChevronRight,
   Pin,
@@ -41,26 +41,30 @@ function FolderCard({
   previewNotes,
   isArchived,
   isRenaming,
+  selectMode,
+  selected,
   onOpen,
   onRename,
   onRenameSubmit,
   onRenameCancel,
   onArchive,
-  onUnarchive,
   onDelete,
+  onToggleSelect,
 }: {
   folder: { id: string; name: string; updatedAt: number };
   noteCount: number;
   previewNotes: { id: string; snippetText: string }[];
   isArchived: boolean;
   isRenaming: boolean;
+  selectMode: boolean;
+  selected: boolean;
   onOpen: () => void;
   onRename: () => void;
   onRenameSubmit: (newName: string) => void;
   onRenameCancel: () => void;
   onArchive: () => void;
-  onUnarchive: () => void;
   onDelete: () => void;
+  onToggleSelect: () => void;
 }) {
   const [confirmAction, setConfirmAction] = useState<'archive' | 'delete' | null>(null);
 
@@ -118,106 +122,109 @@ function FolderCard({
         />
       </div>
 
-      {/* Layer 4 — z-40 — foreground text overlay */}
+      {/* Layer 4 — z-40 — foreground text overlay (on pocket) */}
       <div
-        onClick={isRenaming ? undefined : onOpen}
-        className="absolute inset-0 p-4 flex flex-col justify-between z-40 cursor-pointer"
+        onClick={selectMode ? onToggleSelect : (isArchived ? undefined : onOpen)}
+        className={`absolute inset-0 flex flex-col justify-end z-40 ${isArchived && !selectMode ? 'cursor-default' : 'cursor-pointer'}`}
       >
-        <div>
+        {selectMode && (
+          <div className="absolute top-2 left-2 z-50">
+            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+              selected ? 'bg-teal-400/20 border-teal-400/50' : 'border-white/20 bg-black/20'
+            }`}>
+              {selected && <Check className="w-3 h-3 text-teal-400" />}
+            </div>
+          </div>
+        )}
+        <div className="px-4 pb-3.5 pt-8">
           {isRenaming ? (
             <input
               autoFocus
               type="text"
               defaultValue={folder.name}
+              maxLength={40}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') onRenameSubmit((e.target as HTMLInputElement).value);
                 if (e.key === 'Escape') onRenameCancel();
               }}
               onBlur={(e) => onRenameSubmit(e.target.value)}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white/5 text-slate-100 text-sm font-semibold px-2 py-1 rounded-lg border border-white/10 outline-none focus:border-teal-400/30 w-full max-w-[90%] transition-colors"
+              className="bg-transparent text-white text-sm font-semibold px-1 py-0.5 border-b border-white/30 outline-none focus:border-teal-400/50 w-full max-w-[90%] transition-colors"
             />
           ) : (
-            <h3 className="font-semibold text-slate-100 text-sm leading-tight truncate">
+            <h3 className="font-semibold text-white text-sm leading-tight truncate drop-shadow-sm">
               {folder.name}
             </h3>
           )}
-          <p className="text-[10px] text-white/25 mt-0.5">
+          <p className="text-[10px] text-white/50 mt-0.5 drop-shadow-sm">
             {isArchived ? `Archived ${relativeTime(folder.updatedAt)}` : `Edited ${relativeTime(folder.updatedAt)}`}
           </p>
-        </div>
-        <div className="flex items-end justify-between">
-          <span className="text-[10px] text-slate-800/80">
-            {noteCount === 0 ? 'Empty' : `${noteCount} note${noteCount !== 1 ? 's' : ''}`}
-          </span>
-          {noteCount > 0 && (
-            <span className="text-[10px] font-medium text-slate-700/70 bg-black/[0.06] border border-black/[0.08] rounded-full px-2 py-0.5">
-              {noteCount}
+          <div className="flex items-center justify-between mt-1.5">
+            <span className="text-[10px] text-white/40">
+              {noteCount === 0 ? 'Empty' : `${noteCount} note${noteCount !== 1 ? 's' : ''}`}
             </span>
-          )}
+            {noteCount > 0 && (
+              <span className="text-[10px] font-medium text-white/50 bg-white/10 border border-white/15 rounded-full px-2 py-0.5">
+                {noteCount}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Hover actions — z-50 */}
-      <div className="absolute top-2 right-2 z-50 opacity-0 group-hover:opacity-100 transition-opacity">
-        {confirmAction ? (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={(e) => { e.stopPropagation(); confirmAction === 'archive' ? onArchive() : onDelete(); setConfirmAction(null); }}
-              className={`px-2 py-1 rounded-lg text-[10px] font-medium transition-colors cursor-pointer ${
-                confirmAction === 'delete'
-                  ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25'
-                  : 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25'
-              }`}
-            >
-              {confirmAction === 'delete' ? 'Delete' : 'Archive'}
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); setConfirmAction(null); }}
-              className="px-2 py-1 rounded-lg text-[10px] text-white/30 hover:text-white/50 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-0.5">
-            {!isArchived && (
+      {!selectMode && (
+        <div className="absolute top-2 right-2 z-50 opacity-0 group-hover:opacity-100 transition-opacity">
+          {confirmAction ? (
+            <div className="flex items-center gap-1">
               <button
-                onClick={(e) => { e.stopPropagation(); onRename(); }}
-                className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/5 transition-all cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); confirmAction === 'archive' ? onArchive() : onDelete(); setConfirmAction(null); }}
+                className={`px-2 py-1 rounded-lg text-[10px] font-medium transition-colors cursor-pointer ${
+                  confirmAction === 'delete'
+                    ? 'bg-red-500/15 text-red-400 hover:bg-red-500/25'
+                    : 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25'
+                }`}
               >
-                <Pencil className="w-3 h-3" />
+                {confirmAction === 'delete' ? 'Delete' : 'Archive'}
               </button>
-            )}
-            {isArchived ? (
               <button
-                onClick={(e) => { e.stopPropagation(); onUnarchive(); }}
-                className="p-1.5 rounded-lg text-white/25 hover:text-teal-400 hover:bg-white/5 transition-all cursor-pointer"
-                title="Unarchive"
+                onClick={(e) => { e.stopPropagation(); setConfirmAction(null); }}
+                className="px-2 py-1 rounded-lg text-[10px] text-white/30 hover:text-white/50 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
               >
-                <ArchiveRestore className="w-3 h-3" />
+                Cancel
               </button>
-            ) : (
-              <button
-                onClick={(e) => { e.stopPropagation(); setConfirmAction('archive'); }}
-                className="p-1.5 rounded-lg text-white/25 hover:text-amber-400 hover:bg-white/5 transition-all cursor-pointer"
-                title="Archive"
-              >
-                <Archive className="w-3 h-3" />
-              </button>
-            )}
-            {isArchived && (
-              <button
-                onClick={(e) => { e.stopPropagation(); setConfirmAction('delete'); }}
-                className="p-1.5 rounded-lg text-white/25 hover:text-red-400 hover:bg-white/5 transition-all cursor-pointer"
-                title="Delete"
-              >
-                <Trash2 className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-0.5">
+              {isArchived ? (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setConfirmAction('delete'); }}
+                  className="p-1.5 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-400/10 transition-all cursor-pointer"
+                  title="Delete"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onRename(); }}
+                    className="p-1.5 rounded-lg text-white/25 hover:text-white/60 hover:bg-white/5 transition-all cursor-pointer"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setConfirmAction('archive'); }}
+                    className="p-1.5 rounded-lg text-white/25 hover:text-amber-400 hover:bg-white/5 transition-all cursor-pointer"
+                    title="Archive"
+                  >
+                    <Archive className="w-3 h-3" />
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -226,17 +233,21 @@ function FolderCard({
 function NoteCard({
   note,
   isArchived,
+  selectMode,
+  selected,
   onOpen,
   onArchive,
-  onUnarchive,
   onDelete,
+  onToggleSelect,
 }: {
   note: Note;
   isArchived: boolean;
+  selectMode: boolean;
+  selected: boolean;
   onOpen: () => void;
   onArchive: () => void;
-  onUnarchive: () => void;
   onDelete: () => void;
+  onToggleSelect: () => void;
 }) {
   const [confirmAction, setConfirmAction] = useState<'archive' | 'delete' | null>(null);
   const done = note.tasks.filter((t) => t.done).length;
@@ -252,18 +263,28 @@ function NoteCard({
       className="group relative"
     >
       <div
-        onClick={onOpen}
+        onClick={selectMode ? onToggleSelect : onOpen}
         className={`backdrop-blur-sm border rounded-xl p-3 transition-all duration-200 cursor-pointer h-full ${
-          isArchived ? 'border-white/5 opacity-60 hover:opacity-80 bg-white/[0.03]' : 'border-white/[0.08] hover:border-white/15 hover:shadow-md hover:shadow-black/10 bg-white/[0.04]'
+          selected
+            ? 'border-teal-400/40 bg-teal-400/5'
+            : isArchived
+              ? 'border-white/5 opacity-60 hover:opacity-80 bg-white/[0.03]'
+              : 'border-white/[0.08] hover:border-white/15 hover:shadow-md hover:shadow-black/10 bg-white/[0.04]'
         }`}
       >
+        {selectMode && (
+          <div className="absolute top-2 left-2 z-10">
+            <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+              selected ? 'bg-teal-400/20 border-teal-400/50' : 'border-white/20 bg-black/20'
+            }`}>
+              {selected && <Check className="w-3 h-3 text-teal-400" />}
+            </div>
+          </div>
+        )}
         <div className="flex items-start justify-between mb-1.5">
           <span className="text-[11px] text-white/70 font-medium truncate flex-1">
             {note.title || 'Untitled'}
           </span>
-          {note.pinned && (
-            <Pin className="w-3 h-3 text-teal-400/60 shrink-0 ml-1.5" fill="currentColor" />
-          )}
         </div>
         {note.content && (
           <p className="text-[10px] text-white/25 mb-2 leading-relaxed line-clamp-2">{note.content}</p>
@@ -307,42 +328,24 @@ function NoteCard({
         )}
       </div>
 
-      {!confirmAction && (
+      {!selectMode && !confirmAction && (
         <div className="absolute top-2 right-2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-20">
           {isArchived ? (
-            <>
-              <button
-                onClick={(e) => { e.stopPropagation(); onUnarchive(); }}
-                className="p-1 rounded-lg text-white/15 hover:text-teal-400 hover:bg-white/5 transition-all cursor-pointer"
-                title="Unarchive"
-              >
-                <ArchiveRestore className="w-2.5 h-2.5" />
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); setConfirmAction('delete'); }}
-                className="p-1 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-400/10 transition-all cursor-pointer"
-                title="Delete"
-              >
-                <Trash2 className="w-2.5 h-2.5" />
-              </button>
-            </>
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmAction('delete'); }}
+              className="p-1 rounded-lg text-red-400/60 hover:text-red-400 hover:bg-red-400/10 transition-all cursor-pointer"
+              title="Delete"
+            >
+              <Trash2 className="w-2.5 h-2.5" />
+            </button>
           ) : (
-            <>
-              <button
-                onClick={(e) => { e.stopPropagation(); setConfirmAction('archive'); }}
-                className="p-1 rounded-lg text-white/15 hover:text-amber-400 hover:bg-white/5 transition-all cursor-pointer"
-                title="Archive"
-              >
-                <Archive className="w-2.5 h-2.5" />
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); setConfirmAction('delete'); }}
-                className="p-1 rounded-lg text-white/15 hover:text-red-400 hover:bg-white/5 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                title="Delete"
-              >
-                <Trash2 className="w-2.5 h-2.5" />
-              </button>
-            </>
+            <button
+              onClick={(e) => { e.stopPropagation(); setConfirmAction('archive'); }}
+              className="p-1 rounded-lg text-white/15 hover:text-amber-400 hover:bg-white/5 transition-all cursor-pointer"
+              title="Archive"
+            >
+              <Archive className="w-2.5 h-2.5" />
+            </button>
           )}
         </div>
       )}
@@ -356,7 +359,11 @@ function BottomToolbar({
   showArchived,
   searchOpen,
   searchQuery,
+  selectMode,
+  selectedCount,
+  showAllLinks,
   pinnedNotes,
+  allLinks,
   folders,
   onSearchToggle,
   onSearchChange,
@@ -365,12 +372,22 @@ function BottomToolbar({
   onShowArchived,
   onHideArchived,
   onOpenPinnedNote,
+  onSelectToggle,
+  onBulkDelete,
+  onBulkArchive,
+  onClearSelect,
+  onAdvancedSearch,
+  onLinksToggle,
 }: {
   view: 'folders' | 'folder' | 'note';
   showArchived: boolean;
   searchOpen: boolean;
   searchQuery: string;
+  selectMode: boolean;
+  selectedCount: number;
+  showAllLinks: boolean;
   pinnedNotes: Note[];
+  allLinks: { noteId: string; noteTitle: string; url: string }[];
   folders: NoteFolder[];
   onSearchToggle: () => void;
   onSearchChange: (q: string) => void;
@@ -379,6 +396,12 @@ function BottomToolbar({
   onShowArchived: () => void;
   onHideArchived: () => void;
   onOpenPinnedNote: (noteId: string, folderId: string) => void;
+  onSelectToggle: () => void;
+  onBulkDelete: () => void;
+  onBulkArchive: () => void;
+  onClearSelect: () => void;
+  onAdvancedSearch: () => void;
+  onLinksToggle: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showPinned, setShowPinned] = useState(false);
@@ -400,113 +423,185 @@ function BottomToolbar({
         }}
         className="flex items-center gap-1.5 px-2 py-1.5 overflow-x-auto scrollbar-none"
       >
-        {/* Search chip */}
-        <AnimatePresence>
-          {searchOpen ? (
-            <motion.div
-              key="search-input"
-              layout
-              initial={{ width: 32, opacity: 0 }}
-              animate={{ width: 180, opacity: 1 }}
-              exit={{ width: 32, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-3 py-1.5 overflow-hidden shrink-0"
-            >
-              <Search className="w-3.5 h-3.5 text-white/30 shrink-0" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
-                placeholder="Search..."
-                autoFocus
-                className="bg-transparent text-white text-[11px] outline-none flex-1 min-w-0 placeholder-white/20"
-              />
-              <button
-                onClick={onSearchToggle}
-                className="p-0.5 rounded-full text-white/30 hover:text-white/60 transition-colors cursor-pointer shrink-0"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </motion.div>
-          ) : (
-            <motion.button
-              key="search-btn"
-              layout
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={onSearchToggle}
-              className="flex items-center justify-center w-8 h-8 rounded-full bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all cursor-pointer shrink-0"
-            >
-              <Search className="w-3.5 h-3.5 text-white/40" />
-            </motion.button>
-          )}
-        </AnimatePresence>
-
-        {/* Primary action chips */}
-        <AnimatePresence>
-          {!searchOpen && primaryActions.map((action) => (
-            <motion.button
-              key={action.label}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              onClick={action.disabled ? undefined : action.onClick}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all shrink-0 ${
-                action.disabled
-                  ? 'bg-white/[0.03] border border-white/[0.03] cursor-not-allowed opacity-30'
-                  : 'bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 cursor-pointer'
-              }`}
-            >
-              <action.icon className="w-3.5 h-3.5 text-white/40" />
-              <span className="text-[10px] font-medium text-white/50">{action.label}</span>
-            </motion.button>
-          ))}
-        </AnimatePresence>
-
-        {/* Additional chips — inline */}
-        {!searchOpen && (
+        {/* Select mode: bulk action chips */}
+        {selectMode ? (
           <>
             <button
-              onClick={() => showArchived ? onHideArchived() : onShowArchived()}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 ${
-                showArchived
-                  ? 'bg-teal-400/15 border border-teal-400/25'
-                  : 'bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10'
-              }`}
-            >
-              <Archive className={`w-3.5 h-3.5 ${showArchived ? 'text-teal-400' : 'text-white/40'}`} />
-              <span className={`text-[10px] font-medium ${showArchived ? 'text-teal-400' : 'text-white/50'}`}>Archived</span>
-            </button>
-            <button
+              onClick={onClearSelect}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all cursor-pointer shrink-0"
             >
-              <Download className="w-3.5 h-3.5 text-white/40" />
-              <span className="text-[10px] font-medium text-white/50">Import</span>
+              <X className="w-3.5 h-3.5 text-white/40" />
+              <span className="text-[10px] font-medium text-white/50">Cancel</span>
             </button>
-            <button
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all cursor-pointer shrink-0"
-            >
-              <CheckSquare className="w-3.5 h-3.5 text-white/40" />
-              <span className="text-[10px] font-medium text-white/50">Select</span>
-            </button>
-
-            {/* Pin chip + popover */}
-            <button
-              onClick={() => setShowPinned(!showPinned)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 ${
-                showPinned
-                  ? 'bg-teal-400/15 border border-teal-400/25'
-                  : 'bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10'
-              }`}
-            >
-              <Pin className={`w-3.5 h-3.5 ${showPinned ? 'text-teal-400' : 'text-white/40'}`} />
-              <span className={`text-[10px] font-medium ${showPinned ? 'text-teal-400' : 'text-white/50'}`}>Pinned</span>
-              {pinnedNotes.length > 0 && (
-                <span className={`text-[9px] ${showPinned ? 'text-teal-400/60' : 'text-white/30'}`}>{pinnedNotes.length}</span>
+            {showArchived ? (
+              <button
+                onClick={selectedCount > 0 ? onBulkDelete : undefined}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all shrink-0 ${
+                  selectedCount > 0
+                    ? 'bg-red-400/15 border border-red-400/25 text-red-400 cursor-pointer'
+                    : 'bg-white/[0.03] border border-white/[0.03] opacity-30 cursor-not-allowed'
+                }`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-medium">Delete ({selectedCount})</span>
+              </button>
+            ) : (
+              <button
+                onClick={selectedCount > 0 ? onBulkArchive : undefined}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all shrink-0 ${
+                  selectedCount > 0
+                    ? 'bg-amber-400/15 border border-amber-400/25 text-amber-400 cursor-pointer'
+                    : 'bg-white/[0.03] border border-white/[0.03] opacity-30 cursor-not-allowed'
+                }`}
+              >
+                <Archive className="w-3.5 h-3.5" />
+                <span className="text-[10px] font-medium">Archive ({selectedCount})</span>
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Search chip */}
+            <AnimatePresence>
+              {searchOpen ? (
+                <motion.div
+                  key="search-input"
+                  layout
+                  initial={{ width: 32, opacity: 0 }}
+                  animate={{ width: '100%', opacity: 1 }}
+                  exit={{ width: 32, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-full px-3 py-1.5 overflow-hidden flex-1 min-w-0"
+                >
+                  <Search className="w-3.5 h-3.5 text-white/30 shrink-0" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => onSearchChange(e.target.value)}
+                    placeholder="Search..."
+                    autoFocus
+                    className="bg-transparent text-white text-[11px] outline-none flex-1 min-w-0 placeholder-white/20"
+                  />
+                  <button
+                    onClick={onSearchToggle}
+                    className="p-0.5 rounded-full text-white/30 hover:text-white/60 transition-colors cursor-pointer shrink-0"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </motion.div>
+              ) : (
+                <motion.button
+                  key="search-btn"
+                  layout
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  onClick={onSearchToggle}
+                  className="flex items-center justify-center w-8 h-8 rounded-full bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all cursor-pointer shrink-0"
+                >
+                  <Search className="w-3.5 h-3.5 text-white/40" />
+                </motion.button>
               )}
-            </button>
+            </AnimatePresence>
+
+            {/* Primary action chips */}
+            <AnimatePresence>
+              {!searchOpen && primaryActions.map((action) => (
+                <motion.button
+                  key={action.label}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  onClick={action.disabled ? undefined : action.onClick}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all shrink-0 ${
+                    action.disabled
+                      ? 'bg-white/[0.03] border border-white/[0.03] cursor-not-allowed opacity-30'
+                      : 'bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 cursor-pointer'
+                  }`}
+                >
+                  <action.icon className="w-3.5 h-3.5 text-white/40" />
+                  <span className="text-[10px] font-medium text-white/50">{action.label}</span>
+                </motion.button>
+              ))}
+            </AnimatePresence>
+
+            {/* Additional chips — inline */}
+            {!searchOpen && (
+              <>
+                <button
+                  onClick={onSelectToggle}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 ${
+                    selectMode
+                      ? 'bg-teal-400/15 border border-teal-400/25'
+                      : 'bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10'
+                  }`}
+                >
+                  <CheckSquare className={`w-3.5 h-3.5 ${selectMode ? 'text-teal-400' : 'text-white/40'}`} />
+                  <span className={`text-[10px] font-medium ${selectMode ? 'text-teal-400' : 'text-white/50'}`}>Select</span>
+                </button>
+                <button
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all cursor-pointer shrink-0"
+                >
+                  <Download className="w-3.5 h-3.5 text-white/40" />
+                  <span className="text-[10px] font-medium text-white/50">Import</span>
+                </button>
+
+                {/* Pin chip + popover */}
+                <button
+                  onClick={() => setShowPinned(!showPinned)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 ${
+                    showPinned
+                      ? 'bg-teal-400/15 border border-teal-400/25'
+                      : 'bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10'
+                  }`}
+                >
+                  <Pin className={`w-3.5 h-3.5 ${showPinned ? 'text-teal-400' : 'text-white/40'}`} />
+                  <span className={`text-[10px] font-medium ${showPinned ? 'text-teal-400' : 'text-white/50'}`}>Pinned</span>
+                  {pinnedNotes.length > 0 && (
+                    <span className={`text-[9px] ${showPinned ? 'text-teal-400/60' : 'text-white/30'}`}>{pinnedNotes.length}</span>
+                  )}
+                </button>
+
+                {/* Links chip */}
+                <button
+                  onClick={onLinksToggle}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 ${
+                    showAllLinks
+                      ? 'bg-teal-400/15 border border-teal-400/25'
+                      : 'bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10'
+                  }`}
+                >
+                  <Link2 className={`w-3.5 h-3.5 ${showAllLinks ? 'text-teal-400' : 'text-white/40'}`} />
+                  <span className={`text-[10px] font-medium ${showAllLinks ? 'text-teal-400' : 'text-white/50'}`}>Links</span>
+                  {allLinks.length > 0 && (
+                    <span className={`text-[9px] ${showAllLinks ? 'text-teal-400/60' : 'text-white/30'}`}>{allLinks.length}</span>
+                  )}
+                </button>
+
+                {/* Advanced search chip */}
+                <button
+                  onClick={onAdvancedSearch}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 transition-all cursor-pointer shrink-0"
+                >
+                  <Search className="w-3.5 h-3.5 text-white/40" />
+                  <span className="text-[10px] font-medium text-white/50">Search All</span>
+                </button>
+
+                {/* Archived chip — most right */}
+                <button
+                  onClick={() => showArchived ? onHideArchived() : onShowArchived()}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all cursor-pointer shrink-0 ${
+                    showArchived
+                      ? 'bg-teal-400/15 border border-teal-400/25'
+                      : 'bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10'
+                  }`}
+                >
+                  <Archive className={`w-3.5 h-3.5 ${showArchived ? 'text-teal-400' : 'text-white/40'}`} />
+                  <span className={`text-[10px] font-medium ${showArchived ? 'text-teal-400' : 'text-white/50'}`}>Archived</span>
+                </button>
+              </>
+            )}
           </>
         )}
       </div>
@@ -564,13 +659,11 @@ export default function NotesPage() {
   const updateFolder = useNotesStore((s) => s.updateFolder);
   const deleteFolder = useNotesStore((s) => s.deleteFolder);
   const archiveFolder = useNotesStore((s) => s.archiveFolder);
-  const unarchiveFolder = useNotesStore((s) => s.unarchiveFolder);
   const setActiveFolder = useNotesStore((s) => s.setActiveFolder);
   const createNote = useNotesStore((s) => s.createNote);
   const updateNote = useNotesStore((s) => s.updateNote);
   const deleteNote = useNotesStore((s) => s.deleteNote);
   const archiveNote = useNotesStore((s) => s.archiveNote);
-  const unarchiveNote = useNotesStore((s) => s.unarchiveNote);
   const setActiveNote = useNotesStore((s) => s.setActiveNote);
   const addTask = useNotesStore((s) => s.addTask);
   const toggleTask = useNotesStore((s) => s.toggleTask);
@@ -594,6 +687,11 @@ export default function NotesPage() {
   const [tasksExpanded, setTasksExpanded] = useState(false);
   const [linksExpanded, setLinksExpanded] = useState(false);
   const [linkInput, setLinkInput] = useState('');
+  const [linkConfirming, setLinkConfirming] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+  const [showAllLinks, setShowAllLinks] = useState(false);
   const taskInputRef = useRef<HTMLInputElement>(null);
   const newFolderRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -603,6 +701,17 @@ export default function NotesPage() {
   const folderNotes = activeFolderId ? getFolderNotes(activeFolderId) : [];
   const archivedFolders = getArchivedFolders();
   const archivedNotes = getArchivedNotes();
+
+  const allLinks = useMemo(() => {
+    const result: { noteId: string; noteTitle: string; url: string }[] = [];
+    for (const note of notes) {
+      if (note.archived) continue;
+      for (const link of note.links || []) {
+        result.push({ noteId: note.id, noteTitle: note.title || 'Untitled', url: link.url });
+      }
+    }
+    return result;
+  }, [notes]);
 
   const handleCreateFolder = () => {
     if (!newFolderName.trim()) return;
@@ -657,10 +766,52 @@ export default function NotesPage() {
     }
   };
 
+  const handlePasteLink = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setLinkInput(text.trim());
+        setLinkConfirming(true);
+      }
+    } catch {
+      // clipboard API not available
+    }
+  };
+
   const view: 'folders' | 'folder' | 'note' = activeNoteId ? 'note' : activeFolderId ? 'folder' : 'folders';
 
   const doneCount = activeNote?.tasks.filter((t) => t.done).length ?? 0;
   const totalCount = activeNote?.tasks.length ?? 0;
+
+  const toggleSelectItem = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const clearSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const bulkDelete = () => {
+    selectedIds.forEach((id) => {
+      if (notes.find((n) => n.id === id)) deleteNote(id);
+      else deleteFolder(id);
+    });
+    clearSelectMode();
+  };
+
+  const bulkArchive = () => {
+    selectedIds.forEach((id) => {
+      if (notes.find((n) => n.id === id)) archiveNote(id);
+      else archiveFolder(id);
+    });
+    clearSelectMode();
+  };
 
   const filteredFolders = showArchived
     ? archivedFolders.filter((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -668,7 +819,9 @@ export default function NotesPage() {
 
   const filteredNotes = showArchived
     ? archivedNotes.filter((n) => n.title.toLowerCase().includes(searchQuery.toLowerCase()) || n.content.toLowerCase().includes(searchQuery.toLowerCase()))
-    : folderNotes.filter((n) => n.title.toLowerCase().includes(searchQuery.toLowerCase()) || n.content.toLowerCase().includes(searchQuery.toLowerCase()));
+    : activeFolderId
+      ? folderNotes.filter((n) => n.title.toLowerCase().includes(searchQuery.toLowerCase()) || n.content.toLowerCase().includes(searchQuery.toLowerCase()))
+      : [];
 
   return (
     <div className="flex flex-col h-full">
@@ -742,12 +895,13 @@ export default function NotesPage() {
                   type="text"
                   value={newFolderName}
                   onChange={(e) => setNewFolderName(e.target.value)}
+                  maxLength={40}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleCreateFolder();
                     if (e.key === 'Escape') setShowNewFolder(false);
                   }}
                   placeholder="Folder name..."
-                  className="flex-1 bg-white/5 text-white text-xs px-3 py-2 rounded-xl border border-white/10 outline-none focus:border-teal-400/30 placeholder-white/20 transition-colors"
+                  className="flex-1 bg-transparent text-white text-xs px-3 py-2 border-b border-white/20 outline-none focus:border-teal-400/40 placeholder-white/20 transition-colors"
                 />
                 <button
                   onClick={handleCreateFolder}
@@ -768,6 +922,8 @@ export default function NotesPage() {
         </AnimatePresence>
       </div>
 
+      <div className="h-px bg-white/5 mx-4 shrink-0" />
+
       {/* Content area */}
       <AnimatePresence mode="wait">
         {activeNote ? (
@@ -783,8 +939,9 @@ export default function NotesPage() {
               type="text"
               value={activeNote.title}
               onChange={(e) => updateNote(activeNote.id, { title: e.target.value })}
+              maxLength={60}
               placeholder="Note title..."
-              className="bg-transparent text-white/80 text-sm font-medium outline-none mb-2"
+              className="bg-transparent text-white/80 text-sm font-medium outline-none mb-2 border-b border-transparent focus:border-white/20 transition-colors w-full"
             />
 
             {/* Action bar */}
@@ -949,22 +1106,87 @@ export default function NotesPage() {
                     <input
                       type="url"
                       value={linkInput}
-                      onChange={(e) => setLinkInput(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddLink(); }}
+                      onChange={(e) => { setLinkInput(e.target.value); setLinkConfirming(false); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') { handleAddLink(); setLinkConfirming(false); } }}
                       placeholder="Add a link..."
                       className="bg-transparent text-white text-xs outline-none flex-1 placeholder-white/30"
                     />
-                    <button
-                      onClick={handleAddLink}
-                      disabled={!linkInput.trim()}
-                      className="text-teal-400/50 hover:text-teal-400 transition-colors cursor-pointer disabled:opacity-30"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
+                    {linkInput.trim() ? (
+                      <div className="flex items-center gap-1">
+                        {linkConfirming && (
+                          <button
+                            onClick={() => { handleAddLink(); setLinkConfirming(false); }}
+                            className="text-teal-400/60 hover:text-teal-400 transition-colors cursor-pointer"
+                            title="Add link"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => { setLinkInput(''); setLinkConfirming(false); }}
+                          className="text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handlePasteLink}
+                        className="text-white/30 hover:text-teal-400 transition-colors cursor-pointer"
+                        title="Paste from clipboard"
+                      >
+                        <Clipboard className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
+          </motion.div>
+        ) : showAllLinks ? (
+          /* ── All Links List ── */
+          <motion.div
+            key="all-links"
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 10 }}
+            className="flex-1 overflow-y-auto px-4 pt-2 pb-2"
+          >
+            {allLinks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-white/20">
+                <Link2 className="w-8 h-8 mb-2 opacity-30" />
+                <p className="text-xs">No links saved yet</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {allLinks.map((item, i) => {
+                  const folder = folders.find((f) => f.id === notes.find((n) => n.id === item.noteId)?.folderId);
+                  return (
+                    <a
+                      key={i}
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors group"
+                    >
+                      <Link2 className="w-3.5 h-3.5 text-white/20 group-hover:text-teal-400/50 shrink-0 transition-colors" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-teal-400/80 group-hover:text-teal-400 truncate transition-colors">{item.url}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] text-white/30 truncate">{item.noteTitle}</span>
+                          {folder && (
+                            <>
+                              <span className="text-[10px] text-white/10">·</span>
+                              <span className="text-[10px] text-white/20 truncate">{folder.name}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
           </motion.div>
         ) : activeFolderId && !showArchived ? (
           /* ── Folder Notes Grid ── */
@@ -973,7 +1195,7 @@ export default function NotesPage() {
             initial={{ opacity: 0, x: 10 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 10 }}
-            className="flex-1 overflow-y-auto px-4 pb-2"
+            className="flex-1 overflow-y-auto px-4 pt-2 pb-2"
           >
             {filteredNotes.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-white/20">
@@ -989,19 +1211,91 @@ export default function NotesPage() {
                       key={note.id}
                       note={note}
                       isArchived={note.archived}
-                      onOpen={() => setActiveNote(note.id)}
+                      selectMode={selectMode}
+                      selected={selectedIds.has(note.id)}
+                      onOpen={() => { setActiveNote(note.id); setShowAllLinks(false); }}
                       onArchive={() => archiveNote(note.id)}
-                      onUnarchive={() => unarchiveNote(note.id)}
                       onDelete={() => deleteNote(note.id)}
+                      onToggleSelect={() => toggleSelectItem(note.id)}
                     />
                   ))}
                 </AnimatePresence>
               </div>
             )}
           </motion.div>
+        ) : showArchived ? (
+          /* ── Unified Archived Grid (folders + notes) ── */
+          <div className="flex-1 overflow-y-auto px-4 pt-2 pb-2">
+            {filteredFolders.length === 0 && filteredNotes.length === 0 && !showNewFolder ? (
+              <div className="flex flex-col items-center justify-center h-full text-white/20">
+                <Archive className="w-8 h-8 mb-2 opacity-30" />
+                <p className="text-xs">{searchQuery ? 'No matches' : 'Nothing archived'}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredFolders.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-white/20 font-medium mb-2 px-1">Folders</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <AnimatePresence>
+                        {filteredFolders.map((folder) => {
+                          const fNotes = getFolderNotes(folder.id);
+                          const previewNotes = fNotes.slice(0, 2).map((n) => ({
+                            id: n.id,
+                            snippetText: n.content.replace(/\n/g, ' ').slice(0, 120) || n.title,
+                          }));
+                          return (
+                            <FolderCard
+                              key={folder.id}
+                              folder={folder}
+                              noteCount={notes.filter((n) => n.folderId === folder.id && n.archived).length}
+                              previewNotes={previewNotes}
+                              isArchived
+                              isRenaming={false}
+                              selectMode={selectMode}
+                              selected={selectedIds.has(folder.id)}
+                              onOpen={() => {}}
+                              onRename={() => {}}
+                              onRenameSubmit={() => {}}
+                              onRenameCancel={() => {}}
+                              onArchive={() => {}}
+                              onDelete={() => deleteFolder(folder.id)}
+                              onToggleSelect={() => toggleSelectItem(folder.id)}
+                            />
+                          );
+                        })}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                )}
+                {filteredNotes.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-white/20 font-medium mb-2 px-1">Notes</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <AnimatePresence>
+                        {filteredNotes.map((note) => (
+                          <NoteCard
+                            key={note.id}
+                            note={note}
+                            isArchived
+                            selectMode={selectMode}
+                            selected={selectedIds.has(note.id)}
+                            onOpen={() => {}}
+                            onArchive={() => {}}
+                            onDelete={() => deleteNote(note.id)}
+                            onToggleSelect={() => toggleSelectItem(note.id)}
+                          />
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         ) : (
           /* ── Folder Grid ── */
-          <div className="flex-1 overflow-y-auto px-4 pb-2">
+          <div className="flex-1 overflow-y-auto px-4 pt-2 pb-2">
             {filteredFolders.length === 0 && !showNewFolder ? (
               <div className="flex flex-col items-center justify-center h-full text-white/20">
                 <FolderOpen className="w-8 h-8 mb-2 opacity-30" />
@@ -1025,13 +1319,15 @@ export default function NotesPage() {
                         previewNotes={previewNotes}
                         isArchived={showArchived}
                         isRenaming={renamingFolderId === folder.id}
-                        onOpen={() => setActiveFolder(folder.id)}
+                        selectMode={selectMode}
+                        selected={selectedIds.has(folder.id)}
+                        onOpen={() => { setActiveFolder(folder.id); setShowAllLinks(false); }}
                         onRename={() => setRenamingFolderId(folder.id)}
                         onRenameSubmit={(newName) => handleRenameFolder(folder.id, newName)}
                         onRenameCancel={() => setRenamingFolderId(null)}
                         onArchive={() => archiveFolder(folder.id)}
-                        onUnarchive={() => unarchiveFolder(folder.id)}
                         onDelete={() => deleteFolder(folder.id)}
+                        onToggleSelect={() => toggleSelectItem(folder.id)}
                       />
                     );
                   })}
@@ -1049,18 +1345,212 @@ export default function NotesPage() {
           showArchived={showArchived}
           searchOpen={searchOpen}
           searchQuery={searchQuery}
+          selectMode={selectMode}
+          selectedCount={selectedIds.size}
+          showAllLinks={showAllLinks}
           pinnedNotes={getPinnedNotes()}
+          allLinks={allLinks}
           folders={folders}
           onSearchToggle={() => { setSearchOpen(!searchOpen); setSearchQuery(''); }}
           onSearchChange={setSearchQuery}
           onNewFolder={handleNewFolder}
           onNewNote={handleNewNote}
-          onShowArchived={() => { setShowArchived(true); setSearchQuery(''); setActiveFolder(null); setActiveNote(null); }}
-          onHideArchived={() => { setShowArchived(false); setSearchQuery(''); }}
-          onOpenPinnedNote={(noteId, folderId) => { setActiveFolder(folderId); setActiveNote(noteId); }}
+          onShowArchived={() => { setShowArchived(true); setSearchQuery(''); setActiveFolder(null); setActiveNote(null); clearSelectMode(); setShowAllLinks(false); }}
+          onHideArchived={() => { setShowArchived(false); setSearchQuery(''); clearSelectMode(); }}
+          onOpenPinnedNote={(noteId, folderId) => { setActiveFolder(folderId); setActiveNote(noteId); setShowAllLinks(false); }}
+          onSelectToggle={() => { if (selectMode) clearSelectMode(); else setSelectMode(true); }}
+          onBulkDelete={bulkDelete}
+          onBulkArchive={bulkArchive}
+          onClearSelect={clearSelectMode}
+          onAdvancedSearch={() => setAdvancedSearchOpen(true)}
+          onLinksToggle={() => { setShowAllLinks(!showAllLinks); if (!showAllLinks) { setActiveFolder(null); setActiveNote(null); setShowArchived(false); } }}
+        />
+      )}
+
+      {/* Advanced Search Modal */}
+      {advancedSearchOpen && (
+        <NotesAdvancedSearchModal
+          notes={notes}
+          folders={folders}
+          sessions={[]}
+          onClose={() => setAdvancedSearchOpen(false)}
+          onOpenNote={(noteId, folderId) => { setActiveFolder(folderId); setActiveNote(noteId); setAdvancedSearchOpen(false); }}
         />
       )}
 
     </div>
+  );
+}
+
+type SearchFilter = 'all' | 'chats' | 'docs' | 'links' | 'tasks';
+
+function NotesAdvancedSearchModal({
+  notes,
+  folders,
+  sessions,
+  onClose,
+  onOpenNote,
+}: {
+  notes: Note[];
+  folders: NoteFolder[];
+  sessions: { id: string; title: string; messages: { role: string; content: string }[]; archived: boolean }[];
+  onClose: () => void;
+  onOpenNote: (noteId: string, folderId: string) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<SearchFilter>('all');
+
+  const filters: { id: SearchFilter; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'docs', label: 'Docs' },
+    { id: 'links', label: 'Links' },
+    { id: 'tasks', label: 'Tasks' },
+    { id: 'chats', label: 'Chats' },
+  ];
+
+  const q = query.toLowerCase().trim();
+
+  const noteResults = useMemo(() => {
+    if (q.length < 2) return [];
+    return notes.filter((n) => {
+      if (n.archived) return false;
+      if (filter === 'links') return (n.links || []).some((l) => l.url.toLowerCase().includes(q));
+      if (filter === 'tasks') return n.tasks.some((t) => t.text.toLowerCase().includes(q));
+      if (filter === 'chats') return false;
+      if (n.title.toLowerCase().includes(q)) return true;
+      if (n.content.toLowerCase().includes(q)) return true;
+      if ((n.links || []).some((l) => l.url.toLowerCase().includes(q))) return true;
+      if (n.tasks.some((t) => t.text.toLowerCase().includes(q))) return true;
+      return false;
+    });
+  }, [notes, q, filter]);
+
+  const chatResults = useMemo(() => {
+    if (q.length < 2 || filter === 'docs' || filter === 'links' || filter === 'tasks') return [];
+    return sessions.filter((s) => {
+      if (s.archived) return false;
+      if (s.title.toLowerCase().includes(q)) return true;
+      return s.messages.some((m) => m.content.toLowerCase().includes(q));
+    });
+  }, [sessions, q, filter]);
+
+  const getNoteSnippet = (note: Note) => {
+    if (note.title.toLowerCase().includes(q)) return null;
+    const contentIdx = note.content.toLowerCase().indexOf(q);
+    if (contentIdx !== -1) {
+      const start = Math.max(0, contentIdx - 40);
+      const end = Math.min(note.content.length, contentIdx + q.length + 40);
+      return (start > 0 ? '...' : '') + note.content.slice(start, end) + (end < note.content.length ? '...' : '');
+    }
+    const task = note.tasks.find((t) => t.text.toLowerCase().includes(q));
+    if (task) return task.text;
+    const link = (note.links || []).find((l) => l.url.toLowerCase().includes(q));
+    if (link) return link.url;
+    return null;
+  };
+
+  const totalResults = noteResults.length + chatResults.length;
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 pointer-events-none"
+    >
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+        className="relative bg-[#1A201F]/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[60vh] pointer-events-auto"
+      >
+        {/* Search input */}
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-white/5">
+          <Search className="w-5 h-5 text-white/30 shrink-0" />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search notes, links, tasks..."
+            autoFocus
+            className="flex-1 bg-transparent text-white text-base outline-none placeholder-white/25"
+          />
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Filter tabs */}
+        <div className="flex gap-1 px-4 py-2 border-b border-white/5 overflow-x-auto scrollbar-none">
+          {filters.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={`px-3 py-1 rounded-full text-[11px] font-medium transition-all cursor-pointer shrink-0 ${
+                filter === f.id
+                  ? 'bg-teal-400/15 text-teal-400 border border-teal-400/25'
+                  : 'text-white/40 hover:text-white/60 bg-white/5 border border-white/5 hover:bg-white/10'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Results */}
+        <div className="flex-1 overflow-y-auto">
+          {q.length < 2 ? (
+            <p className="px-5 py-8 text-sm text-white/20 text-center">Type at least 2 characters to search</p>
+          ) : totalResults === 0 ? (
+            <p className="px-5 py-8 text-sm text-white/20 text-center">No results found</p>
+          ) : (
+            <div className="py-1">
+              {noteResults.map((note) => {
+                const folder = folders.find((f) => f.id === note.folderId);
+                const snippet = getNoteSnippet(note);
+                return (
+                  <button
+                    key={note.id}
+                    onClick={() => onOpenNote(note.id, note.folderId)}
+                    className="w-full flex flex-col gap-1 px-5 py-3 text-left hover:bg-white/5 transition-colors cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm text-white/80 truncate flex-1">{note.title || 'Untitled'}</span>
+                      {folder && (
+                        <span className="text-[10px] text-white/20 shrink-0">{folder.name}</span>
+                      )}
+                    </div>
+                    {snippet && (
+                      <p className="text-xs text-white/30 line-clamp-2">{snippet}</p>
+                    )}
+                  </button>
+                );
+              })}
+
+              {chatResults.length > 0 && noteResults.length > 0 && (
+                <div className="px-5 py-1.5">
+                  <p className="text-[10px] text-white/20 font-medium">Chats</p>
+                </div>
+              )}
+              {chatResults.map((session) => (
+                <div
+                  key={session.id}
+                  className="w-full flex flex-col gap-1 px-5 py-3 text-left"
+                >
+                  <span className="text-sm text-white/60 truncate">{session.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
   );
 }

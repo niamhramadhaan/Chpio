@@ -30,15 +30,15 @@ const PROVIDER_LOGOS: Record<string, string> = {
   fireworks: 'https://cdn.simpleicons.org/fireworks',
 };
 
-type Tab = 'general' | 'providers' | 'wallpaper';
+type Tab = 'providers' | 'defaultModel' | 'wallpaper';
 
 export function SettingsModal() {
   const { settingsModalOpen, setSettingsModalOpen } = useAppStore();
-  const [activeTab, setActiveTab] = useState<Tab>('general');
+  const [activeTab, setActiveTab] = useState<Tab>('providers');
 
   const tabs: { id: Tab; label: string; icon: typeof SettingsIcon }[] = [
-    { id: 'general', label: 'General', icon: SettingsIcon },
     { id: 'providers', label: 'Providers', icon: Server },
+    { id: 'defaultModel', label: 'Default Model', icon: SettingsIcon },
     { id: 'wallpaper', label: 'Wallpaper', icon: Palette },
   ];
 
@@ -47,38 +47,45 @@ export function SettingsModal() {
       isOpen={settingsModalOpen}
       onClose={() => setSettingsModalOpen(false)}
       title="Settings"
-      className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
+      className="max-w-2xl h-[520px] overflow-hidden flex flex-col"
     >
-      <div className="flex gap-1 px-1 py-1 rounded-xl bg-white/5 mb-4 shrink-0">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
-                activeTab === tab.id
-                  ? 'bg-teal-400/15 text-teal-400'
-                  : 'text-white/40 hover:text-white/60 hover:bg-white/5'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      <div className="flex gap-4 flex-1 min-h-0">
+        {/* Left sidebar tabs */}
+        <div className="w-44 shrink-0 flex flex-col gap-0.5">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer text-left ${
+                  activeTab === tab.id
+                    ? 'bg-teal-400/15 text-teal-400'
+                    : 'text-white/40 hover:text-white/60 hover:bg-white/5'
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
 
-      <div className="flex-1 overflow-y-auto min-h-0">
-        {activeTab === 'general' && <GeneralTab />}
-        {activeTab === 'providers' && <ProvidersTab />}
-        {activeTab === 'wallpaper' && <WallpaperTab />}
+        {/* Divider */}
+        <div className="w-px bg-white/5 shrink-0" />
+
+        {/* Content area */}
+        <div className="flex-1 overflow-y-auto min-h-0 pr-1">
+          {activeTab === 'providers' && <ProvidersTab />}
+          {activeTab === 'defaultModel' && <DefaultModelTab />}
+          {activeTab === 'wallpaper' && <WallpaperTab />}
+        </div>
       </div>
     </Modal>
   );
 }
 
-function GeneralTab() {
+function DefaultModelTab() {
   const {
     defaultModelId, fallbackModelId, setDefaultModel, setFallbackModel,
   } = useSettingsStore();
@@ -86,8 +93,8 @@ function GeneralTab() {
   const models = useMemo(() => getActiveModels(providers), [providers]);
 
   return (
-    <div className="space-y-4">
-      <GlassCard className="p-4 space-y-3">
+    <div className="space-y-5">
+      <GlassCard className="p-5 space-y-3">
         <h2 className="text-xs font-medium text-white/70 uppercase tracking-wider">Default Model</h2>
         <ModelDropdown
           value={defaultModelId}
@@ -97,7 +104,7 @@ function GeneralTab() {
         />
       </GlassCard>
 
-      <GlassCard className="p-4 space-y-3">
+      <GlassCard className="p-5 space-y-3">
         <h2 className="text-xs font-medium text-white/70 uppercase tracking-wider">Fallback Model</h2>
         <ModelDropdown
           value={fallbackModelId}
