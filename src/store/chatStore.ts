@@ -3,13 +3,8 @@ import type { ChatSession, Message } from '../types';
 
 const STORAGE_KEY = 'chpio-chat-sessions';
 
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
 function saveSessions(sessions: ChatSession[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
-}
-function debouncedSave(sessions: ChatSession[]) {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => saveSessions(sessions), 500);
 }
 
 function loadSessions(): ChatSession[] {
@@ -33,6 +28,9 @@ interface ChatState {
   activeSessionId: string | null;
   isStreaming: boolean;
   abortController: AbortController | null;
+  streamingContent: string;
+  streamingThinking: string;
+  streamingSessionId: string | null;
 
   createSession: (modelId: string, projectId?: string) => string;
   setActiveSession: (id: string | null) => void;
@@ -56,6 +54,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeSessionId: null,
   isStreaming: false,
   abortController: null,
+  streamingContent: '',
+  streamingThinking: '',
+  streamingSessionId: null,
 
   createSession: (modelId, projectId) => {
     const id = crypto.randomUUID();
@@ -92,46 +93,65 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   updateLastAssistantMessage: (sessionId, content) => {
-    const sessions = get().sessions.map((s) => {
-      if (s.id !== sessionId) return s;
-      const messages = [...s.messages];
-      const last = messages[messages.length - 1];
-      if (last && last.role === 'assistant') {
-        messages[messages.length - 1] = { ...last, content };
-      }
-      return { ...s, messages, updatedAt: Date.now() };
-    });
-    debouncedSave(sessions);
-    set({ sessions });
+    set({ streamingContent: content, streamingSessionId: sessionId });
   },
 
   updateLastAssistantThinking: (sessionId, thinking) => {
-    const sessions = get().sessions.map((s) => {
-      if (s.id !== sessionId) return s;
-      const messages = [...s.messages];
-      const last = messages[messages.length - 1];
-      if (last && last.role === 'assistant') {
-        messages[messages.length - 1] = { ...last, thinking };
-      }
-      return { ...s, messages, updatedAt: Date.now() };
-    });
-    debouncedSave(sessions);
-    set({ sessions });
+    set({ streamingThinking: thinking, streamingSessionId: sessionId });
   },
 
   setStreaming: (streaming) => {
-    if (!streaming && saveTimer) {
-      clearTimeout(saveTimer);
-      saveTimer = null;
-      saveSessions(get().sessions);
+    if (!streaming) {
+      // Finalize streaming content into sessions
+      const { streamingContent, streamingThinking, streamingSessionId, sessions } = get();
+      if (streamingSessionId) {
+        const updatedSessions = sessions.map((s) => {
+          if (s.id !== streamingSessionId) return s;
+          const messages = [...s.messages];
+          const last = messages[messages.length - 1];
+          if (last && last.role === 'assistant') {
+            messages[messages.length - 1] = {
+              ...last,
+              content: streamingContent || last.content,
+              thinking: streamingThinking || last.thinking,
+            };
+          }
+          return { ...s, messages, updatedAt: Date.now() };
+        });
+        saveSessions(updatedSessions);
+        set({ sessions: updatedSessions, streamingContent: '', streamingThinking: '', streamingSessionId: null, isStreaming: false, abortController: null });
+        return;
+      }
+      set({ streamingContent: '', streamingThinking: '', streamingSessionId: null, isStreaming: false, abortController: null });
+    } else {
+      set({ isStreaming: true, abortController: get().abortController });
     }
-    set({ isStreaming: streaming, abortController: streaming ? get().abortController : null });
   },
 
   stopStreaming: () => {
     const ctrl = get().abortController;
     if (ctrl) ctrl.abort();
-    set({ isStreaming: false, abortController: null });
+    // Finalize streaming content before stopping
+    const { streamingContent, streamingThinking, streamingSessionId, sessions } = get();
+    if (streamingSessionId) {
+      const updatedSessions = sessions.map((s) => {
+        if (s.id !== streamingSessionId) return s;
+        const messages = [...s.messages];
+        const last = messages[messages.length - 1];
+        if (last && last.role === 'assistant') {
+          messages[messages.length - 1] = {
+            ...last,
+            content: streamingContent || last.content,
+            thinking: streamingThinking || last.thinking,
+          };
+        }
+        return { ...s, messages, updatedAt: Date.now() };
+      });
+      saveSessions(updatedSessions);
+      set({ sessions: updatedSessions, streamingContent: '', streamingThinking: '', streamingSessionId: null, isStreaming: false, abortController: null });
+      return;
+    }
+    set({ streamingContent: '', streamingThinking: '', streamingSessionId: null, isStreaming: false, abortController: null });
   },
 
   replaceSessionMessages: (sessionId, messages) => {

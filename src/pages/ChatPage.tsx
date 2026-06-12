@@ -52,6 +52,8 @@ export function ChatPage() {
   const sessions = useChatStore((s) => s.sessions);
   const activeSessionId = useChatStore((s) => s.activeSessionId);
   const isStreaming = useChatStore((s) => s.isStreaming);
+  const streamingContent = useChatStore((s) => s.streamingContent);
+  const streamingSessionId = useChatStore((s) => s.streamingSessionId);
   const session = sessions.find((s) => s.id === activeSessionId);
   const projects = useProjectStore((s) => s.projects);
   const setView = useAppStore((s) => s.setView);
@@ -99,7 +101,7 @@ export function ChatPage() {
     });
   }, []);
 
-  const lastMessageContent = session?.messages?.[session.messages.length - 1]?.content;
+  const scrollContent = isStreaming ? streamingContent : null;
 
   useEffect(() => {
     if (!isStreaming) return;
@@ -110,7 +112,7 @@ export function ChatPage() {
       });
     });
     return () => cancelAnimationFrame(rafId);
-  }, [lastMessageContent, isStreaming]);
+  }, [scrollContent, isStreaming]);
 
   useEffect(() => {
     if (!isStreaming) {
@@ -289,6 +291,22 @@ export function ChatPage() {
     }
   }, [session, isStreaming, selectedModelId, activeModelId, models, providers, replaceSessionMessages, setStreaming, updateLastAssistantMessage, updateLastAssistantThinking, fallbackModelId]);
 
+  const handleEditMessage = useCallback((msgId: string, newContent: string) => {
+    if (!session) return;
+    editMessage(session.id, msgId, newContent);
+    const idx = session.messages.findIndex((m) => m.id === msgId);
+    const nextMsg = session.messages[idx + 1];
+    if (nextMsg?.role === 'assistant') {
+      handleRegenerate(idx + 1);
+    }
+  }, [session, editMessage, handleRegenerate]);
+
+  const handleRegenerateMessage = useCallback((msgId: string) => {
+    if (!session) return;
+    const idx = session.messages.findIndex((m) => m.id === msgId);
+    if (idx >= 0) handleRegenerate(idx);
+  }, [session, handleRegenerate]);
+
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
       <div className="px-6 pt-4 pb-2 shrink-0 flex items-center gap-2">
@@ -414,35 +432,33 @@ export function ChatPage() {
           )}
 
           {session?.messages.map((msg, idx) => {
-            const isLastEmpty = msg.role === 'assistant' && msg.content === '' && isStreaming && idx === (session?.messages.length ?? 0) - 1;
-            if (isLastEmpty) return null;
+            const isLastAssistant = msg.role === 'assistant' && idx === session.messages.length - 1;
+            const isCurrentlyStreaming = isStreaming && isLastAssistant && streamingSessionId === session.id;
+            const displayContent = isCurrentlyStreaming ? streamingContent : msg.content;
+            const displayThinking = isCurrentlyStreaming ? (useChatStore.getState().streamingThinking || msg.thinking) : msg.thinking;
+
+            // Skip empty assistant message that's waiting for streaming content
+            if (isLastAssistant && msg.content === '' && !streamingContent && isStreaming) return null;
+
             const isLastMessage = idx === session.messages.length - 1;
             const messageContent = msg.role === 'user' ? (
               <UserMessage
                 content={msg.content}
                 timestamp={msg.timestamp}
-                onEdit={(newContent) => {
-                  if (session) {
-                    editMessage(session.id, msg.id, newContent);
-                    const nextMsg = session.messages[idx + 1];
-                    if (nextMsg?.role === 'assistant') {
-                      handleRegenerate(idx + 1);
-                    }
-                  }
-                }}
+                onEdit={(newContent) => handleEditMessage(msg.id, newContent)}
               />
             ) : (
               <AssistantMessage
-                content={msg.content}
-                thinking={msg.thinking}
-                isStreaming={isStreaming && idx === session.messages.length - 1}
-                isLatest={idx === session.messages.length - 1}
+                content={displayContent}
+                thinking={displayThinking}
+                isStreaming={isCurrentlyStreaming}
+                isLatest={isLastMessage}
                 modelId={msg.modelId || session?.modelId || ''}
                 timestamp={msg.timestamp}
                 getModelName={getModelName}
                 isError={msg.content.startsWith('Error:')}
-                onRegenerate={() => handleRegenerate(idx)}
-                onEdit={(newContent) => session && editMessage(session.id, msg.id, newContent)}
+                onRegenerate={() => handleRegenerateMessage(msg.id)}
+                onEdit={(newContent) => handleEditMessage(msg.id, newContent)}
               />
             );
 
@@ -462,7 +478,7 @@ export function ChatPage() {
             return <div key={msg.id}>{messageContent}</div>;
           })}
 
-          {isStreaming && session && session.messages[session.messages.length - 1]?.content === '' && !session.messages[session.messages.length - 1]?.thinking && (
+          {isStreaming && session && streamingSessionId === session.id && streamingContent === '' && !useChatStore.getState().streamingThinking && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -687,13 +703,20 @@ const AssistantMessage = React.memo(function AssistantMessage({
   return (
     <div className="flex justify-start group">
       <div className="max-w-[85%] min-w-0 overflow-hidden flex gap-2.5">
-        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 mt-1">
-          <DotLottieReact
-            data={chpioAvatar}
-            loop={isLatest}
-            autoplay={isLatest}
-            style={{ width: '100%', height: '100%' }}
-          />
+        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 mt-1 bg-teal-400/10 flex items-center justify-center">
+          {isLatest ? (
+            <DotLottieReact
+              data={chpioAvatar}
+              loop
+              autoplay
+              style={{ width: '100%', height: '100%' }}
+            />
+          ) : (
+            <svg viewBox="0 0 40 40" className="w-8 h-8 text-teal-400/60">
+              <rect width="40" height="40" rx="8" fill="currentColor" opacity="0.2" />
+              <text x="20" y="26" textAnchor="middle" fontSize="16" fontWeight="600" fill="currentColor">C</text>
+            </svg>
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-xs text-white/30 mb-1.5 font-medium">ChPio</div>
@@ -735,7 +758,9 @@ const AssistantMessage = React.memo(function AssistantMessage({
               }`}
               style={{ contain: 'content' }}
             >
-              {content ? <MessageContent content={content} /> : (
+              {content ? (
+                isStreaming ? <MessageContent content={content} /> : <LazyMessageContent content={content} />
+              ) : (
                 <span className="inline-block w-1.5 h-3.5 bg-white/30 rounded-sm animate-pulse" />
               )}
             </div>
@@ -778,18 +803,55 @@ const AssistantMessage = React.memo(function AssistantMessage({
   );
 });
 
+const remarkPlugins = [remarkGfm, remarkMath];
+const rehypePlugins = [rehypeKatex];
+
 function MessageContent({ content }: { content: string }) {
   const deferredContent = useDeferredValue(content);
 
-  return (
-    <div className="break-words overflow-hidden min-w-0 leading-relaxed" style={{ wordBreak: 'break-word', contain: 'content' }}>
+  const rendered = useMemo(
+    () => (
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex]}
+        remarkPlugins={remarkPlugins}
+        rehypePlugins={rehypePlugins}
         components={mdComponents}
       >
         {deferredContent}
       </ReactMarkdown>
+    ),
+    [deferredContent]
+  );
+
+  return (
+    <div className="break-words overflow-hidden min-w-0 leading-relaxed" style={{ wordBreak: 'break-word', contain: 'content' }}>
+      {rendered}
+    </div>
+  );
+}
+
+function LazyMessageContent({ content }: { content: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref}>
+      {isVisible ? <MessageContent content={content} /> : <div className="min-h-[40px]" />}
     </div>
   );
 }
