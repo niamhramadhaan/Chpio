@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, type Transition } from 'framer-motion';
+import { motion, type Transition } from 'motion/react';
 import {
   MessageSquare,
   StickyNote,

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { Brain, Plus, Search, X, Trash2, Pencil } from 'lucide-react';
 import { useMemoryStore } from '../store/memoryStore';
 

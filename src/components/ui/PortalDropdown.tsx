@@ -1,6 +1,6 @@
 import { type ReactNode, type RefObject, useEffect, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface PortalDropdownProps {
   isOpen: boolean;
@@ -43,10 +43,18 @@ export function PortalDropdown({
   useEffect(() => {
     if (!isOpen) return;
     updatePosition();
-    const handler = () => updatePosition();
+    let rafId: number | null = null;
+    const handler = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updatePosition();
+      });
+    };
     window.addEventListener('scroll', handler, true);
     window.addEventListener('resize', handler);
     return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
       window.removeEventListener('scroll', handler, true);
       window.removeEventListener('resize', handler);
     };

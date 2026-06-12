@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { X, Pencil } from 'lucide-react';
 import { useSettingsStore } from '../store/settingsStore';
 import { useAppStore } from '../store/appStore';

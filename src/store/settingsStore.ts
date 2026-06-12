@@ -9,6 +9,7 @@ interface SettingsState {
   defaultModelId: string;
   fallbackModelId: string;
   selectedModelId: string;
+  mainProviderId: string;
   wallpaper: string;
   user: UserProfile;
 
@@ -19,6 +20,7 @@ interface SettingsState {
   setDefaultModel: (id: string) => void;
   setFallbackModel: (id: string) => void;
   setSelectedModel: (id: string) => void;
+  setMainProvider: (id: string) => void;
   setWallpaper: (url: string) => void;
   setUser: (user: UserProfile) => void;
   loadSettings: () => void;
@@ -60,6 +62,7 @@ function loadFromStorage(): Partial<SettingsState> {
       providers,
       defaultModelId: data.defaultModelId || '',
       fallbackModelId: data.fallbackModelId || '',
+      mainProviderId: data.mainProviderId || 'openrouter',
       wallpaper: data.wallpaper || DEFAULT_WALLPAPER,
       user: { ...defaultUser, ...data.user },
     };
@@ -68,17 +71,23 @@ function loadFromStorage(): Partial<SettingsState> {
   }
 }
 
-function saveToStorage(state: Pick<SettingsState, 'providers' | 'defaultModelId' | 'fallbackModelId' | 'wallpaper' | 'user'>) {
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      providers: state.providers,
-      defaultModelId: state.defaultModelId,
-      fallbackModelId: state.fallbackModelId,
-      wallpaper: state.wallpaper,
-      user: state.user,
-    })
-  );
+let settingsSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function saveToStorage(state: Pick<SettingsState, 'providers' | 'defaultModelId' | 'fallbackModelId' | 'mainProviderId' | 'wallpaper' | 'user'>) {
+  if (settingsSaveTimer) clearTimeout(settingsSaveTimer);
+  settingsSaveTimer = setTimeout(() => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        providers: state.providers,
+        defaultModelId: state.defaultModelId,
+        fallbackModelId: state.fallbackModelId,
+        mainProviderId: state.mainProviderId,
+        wallpaper: state.wallpaper,
+        user: state.user,
+      })
+    );
+  }, 300);
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -86,6 +95,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   defaultModelId: '',
   fallbackModelId: '',
   selectedModelId: '',
+  mainProviderId: 'openrouter',
   wallpaper: DEFAULT_WALLPAPER,
   user: defaultUser,
 
@@ -95,7 +105,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     );
     set({ providers });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
   },
 
   setProviderEnabled: (id, enabled) => {
@@ -105,7 +115,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     });
     set({ providers });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
   },
 
   setProviderModels: (id, models) => {
@@ -114,7 +124,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     );
     set({ providers });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
   },
 
   setProviderSynced: (id, ts) => {
@@ -123,35 +133,41 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     );
     set({ providers });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
   },
 
   setDefaultModel: (id) => {
     set({ defaultModelId: id });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: id, fallbackModelId: st.fallbackModelId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: id, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
   },
 
   setFallbackModel: (id) => {
     set({ fallbackModelId: id });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: id, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: id, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
   },
 
   setSelectedModel: (id) => {
     set({ selectedModelId: id });
   },
 
+  setMainProvider: (id) => {
+    set({ mainProviderId: id });
+    const st = get();
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: id, wallpaper: st.wallpaper, user: st.user });
+  },
+
   setWallpaper: (url) => {
     set({ wallpaper: url });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, wallpaper: url, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: url, user: st.user });
   },
 
   setUser: (user) => {
     set({ user });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, wallpaper: st.wallpaper, user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user });
   },
 
   loadSettings: () => {

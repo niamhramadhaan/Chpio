@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { FileText, Plus, Search, Trash2, X } from 'lucide-react';
 import { useDocsStore } from '../store/docsStore';
 

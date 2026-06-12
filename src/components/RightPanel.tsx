@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useAppStore } from '../store/appStore';
 import { BottomDock } from './BottomDock';
 import { ChatHistoryPanel } from './panels/ChatHistoryPanel';

@@ -3,6 +3,8 @@ import type { Doc } from '../types';
 
 const STORAGE_KEY = 'chpio-documents';
 
+let docsSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
 function loadDocs(): Doc[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -13,7 +15,10 @@ function loadDocs(): Doc[] {
 }
 
 function saveDocs(docs: Doc[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
+  if (docsSaveTimer) clearTimeout(docsSaveTimer);
+  docsSaveTimer = setTimeout(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
+  }, 300);
 }
 
 interface DocsState {

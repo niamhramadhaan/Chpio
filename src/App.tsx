@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, ChevronDown } from 'lucide-react';
 import { useAppStore } from './store/appStore';
 import { useChatStore } from './store/chatStore';

@@ -3,6 +3,8 @@ import type { Memory } from '../types';
 
 const STORAGE_KEY = 'chpio-memories';
 
+let memoriesSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
 function loadMemories(): Memory[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -13,7 +15,10 @@ function loadMemories(): Memory[] {
 }
 
 function saveMemories(memories: Memory[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(memories));
+  if (memoriesSaveTimer) clearTimeout(memoriesSaveTimer);
+  memoriesSaveTimer = setTimeout(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(memories));
+  }, 300);
 }
 
 interface MemoryState {

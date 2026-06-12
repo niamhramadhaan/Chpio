@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   RefreshCw, Eye, EyeOff, ChevronDown, ChevronUp, Zap, Power, PowerOff,
-  Check, Settings as SettingsIcon, Palette, Server, CheckCircle2, XCircle,
+  Check, Settings as SettingsIcon, Palette, Server, CheckCircle2, XCircle, Star,
 } from 'lucide-react';
 import { useSettingsStore } from '../store/settingsStore';
 import { useAppStore } from '../store/appStore';
@@ -47,7 +47,7 @@ export function SettingsModal() {
       isOpen={settingsModalOpen}
       onClose={() => setSettingsModalOpen(false)}
       title="Settings"
-      className="max-w-2xl h-[520px] overflow-hidden flex flex-col"
+      className="max-w-3xl h-[520px] overflow-hidden flex flex-col"
     >
       <div className="flex gap-4 flex-1 min-h-0">
         {/* Left sidebar tabs */}
@@ -175,7 +175,7 @@ function ModelDropdown({
 }
 
 function ProvidersTab() {
-  const { providers, setProviderKey, setProviderEnabled, setProviderModels, setProviderSynced } = useSettingsStore();
+  const { providers, setProviderKey, setProviderEnabled, setProviderModels, setProviderSynced, mainProviderId, setMainProvider } = useSettingsStore();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [draftKeys, setDraftKeys] = useState<Record<string, string>>({});
@@ -232,22 +232,26 @@ function ProvidersTab() {
   };
 
   const handleToggle = (provider: ProviderConfig) => {
-    if (!provider.enabled) {
-      providers.forEach((p) => {
-        if (p.id !== provider.id && p.enabled) setProviderEnabled(p.id, false);
-      });
-      setProviderEnabled(provider.id, true);
-    }
+    setProviderEnabled(provider.id, !provider.enabled);
   };
+
+  const sortedProviders = useMemo(() => {
+    return [...providers].sort((a, b) => {
+      if (a.id === mainProviderId) return -1;
+      if (b.id === mainProviderId) return 1;
+      return 0;
+    });
+  }, [providers, mainProviderId]);
 
   return (
     <div className="space-y-3">
-      {providers.map((provider) => {
+      {sortedProviders.map((provider) => {
         const isExpanded = expanded === provider.id;
         const logo = PROVIDER_LOGOS[provider.id];
+        const isMain = provider.id === mainProviderId;
 
         return (
-          <GlassCard key={provider.id} className="overflow-hidden">
+          <GlassCard key={provider.id} className={`overflow-hidden ${isMain ? 'ring-1 ring-teal-400/20' : ''}`}>
             <button
               onClick={() => setExpanded(isExpanded ? null : provider.id)}
               className="w-full flex items-center gap-3 p-4 cursor-pointer hover:bg-white/5 transition-colors"
@@ -256,7 +260,12 @@ function ProvidersTab() {
                 <img src={logo} alt={provider.name} className="w-6 h-6 rounded-md" />
               )}
               <div className="flex-1 text-left">
-                <div className="text-sm font-medium text-white">{provider.name}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-white">{provider.name}</span>
+                  {isMain && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-400/15 text-teal-400 font-medium">Main</span>
+                  )}
+                </div>
                 <div className="text-xs text-white/30">
                   {provider.syncedModels.length > 0
                     ? `${provider.syncedModels.length} models · ${provider.modelsLastSynced ? new Date(provider.modelsLastSynced).toLocaleDateString() : ''}`
@@ -384,6 +393,18 @@ function ProvidersTab() {
                           </>
                         )}
                       </GlassButton>
+
+                      {provider.enabled && !isMain && (
+                        <GlassButton
+                          onClick={() => setMainProvider(provider.id)}
+                          size="sm"
+                          variant="ghost"
+                          className="flex items-center gap-1.5"
+                        >
+                          <Star className="w-3.5 h-3.5" />
+                          Set as Main
+                        </GlassButton>
+                      )}
                     </div>
 
                     {testResults[provider.id]?.msg && (

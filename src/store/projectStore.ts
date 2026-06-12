@@ -3,6 +3,8 @@ import type { Project } from '../types';
 
 const STORAGE_KEY = 'chpio-projects';
 
+let projectsSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
 function loadProjects(): Project[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -13,7 +15,10 @@ function loadProjects(): Project[] {
 }
 
 function saveProjects(projects: Project[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  if (projectsSaveTimer) clearTimeout(projectsSaveTimer);
+  projectsSaveTimer = setTimeout(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  }, 300);
 }
 
 interface ProjectState {

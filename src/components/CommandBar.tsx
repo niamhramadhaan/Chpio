@@ -1,13 +1,26 @@
-import { useState, useRef, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { Paperclip, Globe, Code2, Brain, ArrowUp, ChevronDown, Search, X, Square } from 'lucide-react';
-import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { useAppStore } from '../store/appStore';
 import { useChatStore } from '../store/chatStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { streamChat } from '../services/providers';
-import { getActiveModels, stripProviderPrefix } from '../utils/models';
+import { getActiveModels, stripProviderPrefix, getModelProvider } from '../utils/models';
 import { PortalDropdown } from './ui/PortalDropdown';
+
+const PROVIDER_LOGOS: Record<string, string> = {
+  openrouter: 'https://cdn.simpleicons.org/openrouter',
+  openai: 'https://cdn.simpleicons.org/openai',
+  copilot: 'https://cdn.simpleicons.org/github',
+  ollama: 'https://cdn.simpleicons.org/ollama',
+  llamacpp: 'https://cdn.simpleicons.org/cplusplus',
+  google: 'https://cdn.simpleicons.org/google',
+  deepseek: 'https://cdn.simpleicons.org/deepseek',
+  groq: 'https://cdn.simpleicons.org/groq',
+  mistral: 'https://cdn.simpleicons.org/mistral',
+  together: 'https://cdn.simpleicons.org/together',
+  fireworks: 'https://cdn.simpleicons.org/fireworks',
+};
 
 function parseChatError(e: unknown): string {
   const msg = e instanceof Error ? e.message : 'Failed to get response';
@@ -20,14 +33,25 @@ function parseChatError(e: unknown): string {
   return msg;
 }
 
-const LOTTIE_URL = 'https://lottie.host/3bd7f01f-14d7-4c9b-86a2-5024f6cb44f3/eUurreIWqI.lottie';
-
 export function CommandBar() {
-  const { view, setView, setActiveFeature } = useAppStore();
-  const { createSession, addMessage, updateLastAssistantMessage, updateLastAssistantThinking, setStreaming, stopStreaming, isStreaming } = useChatStore();
-  const activeSessionId = useChatStore((s) => s.activeSessionId);
-  const sessions = useChatStore((s) => s.sessions);
-  const { defaultModelId, fallbackModelId, providers } = useSettingsStore();
+  const view = useAppStore((s) => s.view);
+  const setView = useAppStore((s) => s.setView);
+  const setActiveFeature = useAppStore((s) => s.setActiveFeature);
+  const createSession = useChatStore((s) => s.createSession);
+  const addMessage = useChatStore((s) => s.addMessage);
+  const updateLastAssistantMessage = useChatStore((s) => s.updateLastAssistantMessage);
+  const updateLastAssistantThinking = useChatStore((s) => s.updateLastAssistantThinking);
+  const setStreaming = useChatStore((s) => s.setStreaming);
+  const stopStreaming = useChatStore((s) => s.stopStreaming);
+  const isStreaming = useChatStore((s) => s.isStreaming);
+  const isArchived = useChatStore((s) => {
+    const session = s.sessions.find((sess) => sess.id === s.activeSessionId);
+    return session?.archived ?? false;
+  });
+  const defaultModelId = useSettingsStore((s) => s.defaultModelId);
+  const fallbackModelId = useSettingsStore((s) => s.fallbackModelId);
+  const providers = useSettingsStore((s) => s.providers);
+  const mainProviderId = useSettingsStore((s) => s.mainProviderId);
   const selectedModelId = useSettingsStore((s) => s.selectedModelId);
   const setSelectedModel = useSettingsStore((s) => s.setSelectedModel);
 
@@ -36,15 +60,24 @@ export function CommandBar() {
   const [input, setInput] = useState('');
   const [showModels, setShowModels] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
+  const [showProviderSelector, setShowProviderSelector] = useState(false);
   const [toggles, setToggles] = useState({ web: false, code: false, think: false });
   const [attachedFile, setAttachedFile] = useState<{ name: string; text: string } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
+  const providerTriggerRef = useRef<HTMLDivElement>(null);
 
-  const activeModelId = selectedModelId || defaultModelId;
+  const mainProviderFirstModel = useMemo(() => {
+    const mainProvider = providers.find((p) => p.id === mainProviderId && p.enabled && p.syncedModels.length > 0);
+    return mainProvider ? `${mainProvider.id}/${mainProvider.syncedModels[0].id}` : '';
+  }, [providers, mainProviderId]);
+
+  const activeModelId = selectedModelId || defaultModelId || mainProviderFirstModel;
   const activeModel = models.find((m) => m.id === activeModelId);
+  const activeProviderId = activeModel ? getModelProvider(activeModel.id) : null;
+  const activeProviderLogo = activeProviderId ? PROVIDER_LOGOS[activeProviderId] : null;
+  const activeProviderName = activeProviderId ? providers.find((p) => p.id === activeProviderId)?.name : null;
   const isHero = view === 'onboarding';
-  const isArchived = sessions.find((s) => s.id === activeSessionId)?.archived ?? false;
 
   const handleSubmit = async () => {
     if (!input.trim() || isStreaming || isArchived) return;
@@ -79,6 +112,7 @@ export function CommandBar() {
       id: crypto.randomUUID(),
       role: 'assistant' as const,
       content: '',
+      modelId: modelId,
       timestamp: Date.now(),
     };
     addMessage(sessionId, assistantMsg);
@@ -102,15 +136,26 @@ export function CommandBar() {
       const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), chatMessages, pId, controller.signal, toggles.think);
       let accumulated = '';
       let thinkingAccum = '';
+      let rafId: number | null = null;
+
+      const scheduleFlush = () => {
+        if (rafId !== null) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          updateLastAssistantMessage(sessionId, accumulated);
+        });
+      };
 
       for await (const chunk of stream) {
         if (chunk.type === 'thinking') {
           thinkingAccum += chunk.text;
         } else {
           accumulated += chunk.text;
-          updateLastAssistantMessage(sessionId, accumulated);
+          scheduleFlush();
         }
       }
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      updateLastAssistantMessage(sessionId, accumulated);
       if (thinkingAccum) {
         updateLastAssistantThinking(sessionId, thinkingAccum);
       }
@@ -135,6 +180,12 @@ export function CommandBar() {
     }
   };
 
+  useEffect(() => {
+    if (!isStreaming && !isArchived) {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+  }, [isStreaming, isArchived]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -149,10 +200,16 @@ export function CommandBar() {
     textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
   };
 
-  const filteredModels = models.filter((m) =>
-    m.name.toLowerCase().includes(modelSearch.toLowerCase()) ||
-    m.id.toLowerCase().includes(modelSearch.toLowerCase())
-  );
+  const filteredModels = useMemo(() => {
+    const providerModels = activeProviderId
+      ? models.filter((m) => m.providerId === activeProviderId)
+      : models;
+    if (!modelSearch) return providerModels;
+    const search = modelSearch.toLowerCase();
+    return providerModels.filter((m) =>
+      m.name.toLowerCase().includes(search) || m.id.toLowerCase().includes(search)
+    );
+  }, [models, activeProviderId, modelSearch]);
 
   const toggleButton = (key: keyof typeof toggles, icon: typeof Globe, label: string) => (
     <button
@@ -190,18 +247,72 @@ export function CommandBar() {
           </div>
         )}
         <div className="flex items-center gap-3">
-          <motion.div
-            className="w-7 h-7 shrink-0"
-            whileHover={{ scale: 1.3 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+          <div ref={providerTriggerRef} className="relative">
+            <motion.button
+              className="w-7 h-7 shrink-0 rounded-md overflow-hidden cursor-pointer flex items-center justify-center bg-white/5 hover:bg-white/10 transition-colors"
+              whileHover={{ scale: 1.1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 15 }}
+              onClick={() => setShowProviderSelector(!showProviderSelector)}
+              title={activeProviderName ? `${activeProviderName} — click to switch` : 'Select provider'}
+            >
+              {activeProviderLogo ? (
+                <img
+                  src={activeProviderLogo}
+                  alt={activeProviderName || 'Provider'}
+                  className="w-5 h-5"
+                />
+              ) : (
+                <div className="w-5 h-5 rounded bg-white/10 flex items-center justify-center text-[8px] text-white/30 font-bold">?</div>
+              )}
+            </motion.button>
+          </div>
+
+          <PortalDropdown
+            isOpen={showProviderSelector}
+            triggerRef={providerTriggerRef}
+            align="left"
+            direction="up"
+            onClose={() => setShowProviderSelector(false)}
+            className="glass rounded-xl border border-white/10 shadow-2xl overflow-hidden"
           >
-            <DotLottieReact
-              src={LOTTIE_URL}
-              loop
-              autoplay
-              style={{ width: '100%', height: '100%' }}
-            />
-          </motion.div>
+            <div className="p-2">
+              <p className="px-1 pb-1.5 text-[9px] text-white/30 font-medium">Provider</p>
+              <div className="flex items-center gap-1">
+                {providers.filter((p) => p.enabled && p.apiKey).map((provider) => {
+                  const logo = PROVIDER_LOGOS[provider.id];
+                  const providerModels = provider.syncedModels || [];
+                  const isActive = activeProviderId === provider.id;
+                  return (
+                    <button
+                      key={provider.id}
+                      onClick={() => {
+                        if (providerModels.length > 0) {
+                          const firstModel = providerModels[0];
+                          setSelectedModel(`${provider.id}/${firstModel.id}`);
+                        }
+                        setShowProviderSelector(false);
+                      }}
+                      title={provider.name}
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-teal-400/15 border border-teal-400/25'
+                          : 'text-white/60 hover:bg-white/10 border border-transparent'
+                      }`}
+                    >
+                      {logo ? (
+                        <img src={logo} alt={provider.name} className="w-5 h-5" />
+                      ) : (
+                        <div className="w-5 h-5 rounded bg-white/10" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {providers.filter((p) => p.enabled && p.apiKey).length === 0 && (
+                <p className="px-1 py-2 text-[10px] text-white/20 text-center">No providers</p>
+              )}
+            </div>
+          </PortalDropdown>
 
           <textarea
             ref={inputRef}

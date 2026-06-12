@@ -1,6 +1,6 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   FolderOpen,
   FolderPlus,
@@ -19,8 +19,12 @@ import {
   Pin,
   Link2,
   Clipboard,
+  FileText,
+  Copy,
+  FolderInput,
 } from 'lucide-react';
 import { useNotesStore } from '../store/notesStore';
+import { PinItemBase } from '../components/ui/pin-item-base';
 import type { Note, NoteFolder } from '../types';
 
 function relativeTime(ts: number) {
@@ -378,6 +382,7 @@ function BottomToolbar({
   onClearSelect,
   onAdvancedSearch,
   onLinksToggle,
+  onUnpin,
 }: {
   view: 'folders' | 'folder' | 'note';
   showArchived: boolean;
@@ -402,6 +407,7 @@ function BottomToolbar({
   onClearSelect: () => void;
   onAdvancedSearch: () => void;
   onLinksToggle: () => void;
+  onUnpin: (noteId: string) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showPinned, setShowPinned] = useState(false);
@@ -616,30 +622,20 @@ function BottomToolbar({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 4, scale: 0.95 }}
               transition={{ duration: 0.15 }}
-              className="absolute bottom-full right-0 mb-2 w-56 py-2 rounded-xl bg-[#1A201F]/95 backdrop-blur-xl border border-white/10 shadow-2xl z-50"
+              className="absolute bottom-full right-0 mb-2 w-64 p-3 rounded-xl bg-[#1A201F]/95 backdrop-blur-xl border border-white/10 shadow-2xl z-50"
             >
-              <p className="px-3 pb-1.5 text-[10px] text-white/30 font-medium">Pinned Notes</p>
-              {pinnedNotes.length === 0 ? (
-                <p className="px-3 py-3 text-[11px] text-white/20 text-center">No pinned notes yet</p>
-              ) : (
-                <div className="max-h-48 overflow-y-auto">
-                  {pinnedNotes.map((note) => {
-                    const folder = folders.find((f) => f.id === note.folderId);
-                    return (
-                      <button
-                        key={note.id}
-                        onClick={() => { onOpenPinnedNote(note.id, note.folderId); setShowPinned(false); }}
-                        className="w-full flex flex-col gap-0.5 px-3 py-2 text-left hover:bg-white/5 transition-colors cursor-pointer"
-                      >
-                        <span className="text-[11px] text-white/70 truncate">{note.title || 'Untitled'}</span>
-                        {folder && (
-                          <span className="text-[9px] text-white/25">{folder.name}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              <p className="pb-2 text-[10px] text-white/30 font-medium">Pinned Notes</p>
+              <div className="max-h-60 overflow-y-auto">
+                <PinItemBase
+                  notes={pinnedNotes}
+                  folders={folders}
+                  onSelect={(noteId, folderId) => {
+                    onOpenPinnedNote(noteId, folderId);
+                    setShowPinned(false);
+                  }}
+                  onUnpin={(noteId) => onUnpin(noteId)}
+                />
+              </div>
             </motion.div>
           </>
         )}
@@ -670,6 +666,8 @@ export default function NotesPage() {
   const removeTask = useNotesStore((s) => s.removeTask);
   const setShowArchived = useNotesStore((s) => s.setShowArchived);
   const togglePin = useNotesStore((s) => s.togglePin);
+  const duplicateNote = useNotesStore((s) => s.duplicateNote);
+  const moveNote = useNotesStore((s) => s.moveNote);
   const addLink = useNotesStore((s) => s.addLink);
   const removeLink = useNotesStore((s) => s.removeLink);
   const getPinnedNotes = useNotesStore((s) => s.getPinnedNotes);
@@ -691,10 +689,14 @@ export default function NotesPage() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [advancedSearchOpen, setAdvancedSearchOpen] = useState(false);
+  const [showMoveFolder, setShowMoveFolder] = useState(false);
   const [showAllLinks, setShowAllLinks] = useState(false);
   const taskInputRef = useRef<HTMLInputElement>(null);
   const newFolderRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const actionBarRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
   const activeFolder = folders.find((f) => f.id === activeFolderId);
   const activeNote = notes.find((n) => n.id === activeNoteId);
@@ -778,10 +780,98 @@ export default function NotesPage() {
     }
   };
 
+  const buildExportContent = (note: Note, asMd: boolean) => {
+    const lines: string[] = [];
+    if (note.title) {
+      lines.push(asMd ? `# ${note.title}` : note.title);
+      lines.push('');
+    }
+    if (note.content) {
+      lines.push(note.content);
+      lines.push('');
+    }
+    if (note.tasks.length > 0) {
+      if (asMd) {
+        lines.push('## Tasks');
+        note.tasks.forEach((t) => {
+          lines.push(`- [${t.done ? 'x' : ' '}] ${t.text}`);
+        });
+      } else {
+        lines.push('Tasks:');
+        note.tasks.forEach((t) => {
+          lines.push(`${t.done ? '[x]' : '[ ]'} ${t.text}`);
+        });
+      }
+      lines.push('');
+    }
+    if (note.links && note.links.length > 0) {
+      if (asMd) {
+        lines.push('## Links');
+        note.links.forEach((l) => {
+          lines.push(`- [${l.url}](${l.url})`);
+        });
+      } else {
+        lines.push('Links:');
+        note.links.forEach((l) => {
+          lines.push(l.url);
+        });
+      }
+    }
+    return lines.join('\n');
+  };
+
+  const downloadFile = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportTxt = () => {
+    if (!activeNote) return;
+    const content = buildExportContent(activeNote, false);
+    const name = (activeNote.title || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    downloadFile(content, `${name}.txt`);
+  };
+
+  const handleExportMd = () => {
+    if (!activeNote) return;
+    const content = buildExportContent(activeNote, true);
+    const name = (activeNote.title || 'untitled').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    downloadFile(content, `${name}.md`);
+  };
+
+  const handleDuplicate = () => {
+    if (!activeNote) return;
+    duplicateNote(activeNote.id);
+  };
+
+  const checkActionBarScroll = () => {
+    const el = actionBarRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 1);
+  };
+
+  const scrollActionBar = (direction: 'left' | 'right') => {
+    const el = actionBarRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction === 'left' ? -150 : 150, behavior: 'smooth' });
+  };
+
   const view: 'folders' | 'folder' | 'note' = activeNoteId ? 'note' : activeFolderId ? 'folder' : 'folders';
 
   const doneCount = activeNote?.tasks.filter((t) => t.done).length ?? 0;
   const totalCount = activeNote?.tasks.length ?? 0;
+
+  useEffect(() => {
+    if (activeNote) {
+      requestAnimationFrame(() => checkActionBarScroll());
+    }
+  }, [activeNote?.id]);
 
   const toggleSelectItem = (id: string) => {
     setSelectedIds((prev) => {
@@ -945,55 +1035,163 @@ export default function NotesPage() {
             />
 
             {/* Action bar */}
-            <div className="flex items-center gap-1 mb-3">
-              <button
-                onClick={() => togglePin(activeNote.id)}
-                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-all cursor-pointer ${
-                  activeNote.pinned
-                    ? 'text-teal-400 bg-teal-400/10'
-                    : 'text-white/25 hover:text-teal-400 hover:bg-white/5'
-                }`}
+            <div className="relative flex items-center mb-3">
+              <div
+                ref={actionBarRef}
+                onScroll={checkActionBarScroll}
+                onWheel={(e) => {
+                  if (actionBarRef.current && e.deltaY !== 0) {
+                    e.preventDefault();
+                    actionBarRef.current.scrollLeft += e.deltaY;
+                    checkActionBarScroll();
+                  }
+                }}
+                className="flex items-center gap-1 flex-1 min-w-0 overflow-x-auto scrollbar-none"
               >
-                <Pin className="w-3 h-3" />
-                <span>{activeNote.pinned ? 'Pinned' : 'Pin'}</span>
-              </button>
-              <button
-                onClick={() => setTasksExpanded(!tasksExpanded)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer"
-              >
-                <CheckSquare className="w-3 h-3" />
-                <span>List</span>
-                {totalCount > 0 && (
-                  <span className="text-white/20">{doneCount}/{totalCount}</span>
-                )}
-              </button>
-              <button
-                onClick={() => setLinksExpanded(!linksExpanded)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer"
-              >
-                <Link2 className="w-3 h-3" />
-                <span>Links</span>
-                {(activeNote.links?.length ?? 0) > 0 && (
-                  <span className="text-white/20">{activeNote.links!.length}</span>
-                )}
-              </button>
-              <button
-                onClick={handlePaste}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer"
-              >
-                <Clipboard className="w-3 h-3" />
-                <span>Paste</span>
-              </button>
+                <button
+                  onClick={() => togglePin(activeNote.id)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-all cursor-pointer shrink-0 ${
+                    activeNote.pinned
+                      ? 'text-teal-400 bg-teal-400/10'
+                      : 'text-white/25 hover:text-teal-400 hover:bg-white/5'
+                  }`}
+                >
+                  <Pin className="w-3 h-3" />
+                  <span>{activeNote.pinned ? 'Pinned' : 'Pin'}</span>
+                </button>
+                <button
+                  onClick={() => setTasksExpanded(!tasksExpanded)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer shrink-0"
+                >
+                  <CheckSquare className="w-3 h-3" />
+                  <span>List</span>
+                  {totalCount > 0 && (
+                    <span className="text-white/20">{doneCount}/{totalCount}</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setLinksExpanded(!linksExpanded)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer shrink-0"
+                >
+                  <Link2 className="w-3 h-3" />
+                  <span>Links</span>
+                  {(activeNote.links?.length ?? 0) > 0 && (
+                    <span className="text-white/20">{activeNote.links!.length}</span>
+                  )}
+                </button>
+                <button
+                  onClick={handlePaste}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer shrink-0"
+                >
+                  <Clipboard className="w-3 h-3" />
+                  <span>Paste</span>
+                </button>
+                <div className="w-px h-3 bg-white/10 mx-0.5 shrink-0" />
+                <button
+                  onClick={handleExportTxt}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer shrink-0"
+                  title="Export as .txt"
+                >
+                  <FileText className="w-3 h-3" />
+                  <span>.txt</span>
+                </button>
+                <button
+                  onClick={handleExportMd}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer shrink-0"
+                  title="Export as .md"
+                >
+                  <FileText className="w-3 h-3" />
+                  <span>.md</span>
+                </button>
+                <div className="w-px h-3 bg-white/10 mx-0.5 shrink-0" />
+                <button
+                  onClick={handleDuplicate}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer shrink-0"
+                  title="Duplicate note"
+                >
+                  <Copy className="w-3 h-3" />
+                  <span>Duplicate</span>
+                </button>
+                <div className="relative shrink-0">
+                  <button
+                    onClick={() => setShowMoveFolder(!showMoveFolder)}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer"
+                    title="Move to folder"
+                  >
+                    <FolderInput className="w-3 h-3" />
+                    <span>Move</span>
+                  </button>
+                  <AnimatePresence>
+                    {showMoveFolder && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setShowMoveFolder(false)} />
+                        <motion.div
+                          initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute top-full left-0 mt-1 w-44 py-1.5 rounded-xl bg-[#1A201F]/95 backdrop-blur-xl border border-white/10 shadow-2xl z-50"
+                        >
+                          <p className="px-3 pb-1 text-[9px] text-white/30 font-medium">Move to folder</p>
+                          {folders.filter((f) => !f.archived).map((folder) => (
+                            <button
+                              key={folder.id}
+                              onClick={() => {
+                                moveNote(activeNote.id, folder.id);
+                                setShowMoveFolder(false);
+                              }}
+                              className={`w-full text-left px-3 py-1.5 text-[11px] transition-colors cursor-pointer ${
+                                folder.id === activeNote.folderId
+                                  ? 'text-teal-400 bg-teal-400/10'
+                                  : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+                              }`}
+                            >
+                              {folder.name}
+                              {folder.id === activeNote.folderId && (
+                                <span className="ml-1 text-[9px] text-teal-400/60">(current)</span>
+                              )}
+                            </button>
+                          ))}
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Fixed right side: scroll arrows */}
+              <div className="flex items-center gap-1 ml-2 shrink-0">
+                <div className="flex items-center">
+                  <button
+                    onClick={() => scrollActionBar('left')}
+                    className={`flex items-center justify-center w-5 h-5 rounded-md text-white/30 hover:text-white/60 hover:bg-white/5 transition-all cursor-pointer ${
+                      canScrollLeft ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                    }`}
+                  >
+                    <ChevronLeft className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => scrollActionBar('right')}
+                    className={`flex items-center justify-center w-5 h-5 rounded-md text-white/30 hover:text-white/60 hover:bg-white/5 transition-all cursor-pointer ${
+                      canScrollRight ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                    }`}
+                  >
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Content textarea — fills available space */}
-            <textarea
-              ref={textareaRef}
-              value={activeNote.content}
-              onChange={(e) => updateNote(activeNote.id, { content: e.target.value })}
-              placeholder="Write something..."
-              className="flex-1 min-h-0 w-full bg-white/[0.03] text-white/80 text-xs p-3 rounded-xl border border-white/[0.06] outline-none resize-none placeholder-white/20 mb-2"
-            />
+            <div className="relative flex-1 min-h-0 mb-2">
+              <textarea
+                ref={textareaRef}
+                value={activeNote.content}
+                onChange={(e) => updateNote(activeNote.id, { content: e.target.value })}
+                placeholder="Write something..."
+                className="w-full h-full bg-white/[0.03] text-white/80 text-xs p-3 rounded-xl border border-white/[0.06] outline-none resize-none placeholder-white/20"
+              />
+            </div>
 
             {/* Collapsible tasks section */}
             <AnimatePresence>
@@ -1364,6 +1562,7 @@ export default function NotesPage() {
           onClearSelect={clearSelectMode}
           onAdvancedSearch={() => setAdvancedSearchOpen(true)}
           onLinksToggle={() => { setShowAllLinks(!showAllLinks); if (!showAllLinks) { setActiveFolder(null); setActiveNote(null); setShowArchived(false); } }}
+          onUnpin={(noteId) => togglePin(noteId)}
         />
       )}
 

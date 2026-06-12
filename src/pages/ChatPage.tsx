@@ -1,5 +1,5 @@
-import React, { useRef, useEffect, useState, useCallback, useMemo, Suspense } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useRef, useEffect, useState, useCallback, useMemo, Suspense, useDeferredValue } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -68,16 +68,23 @@ export function ChatPage() {
   const fallbackModelId = useSettingsStore((s) => s.fallbackModelId);
   const selectedModelId = useSettingsStore((s) => s.selectedModelId);
   const providers = useSettingsStore((s) => s.providers);
+  const mainProviderId = useSettingsStore((s) => s.mainProviderId);
 
   const models = useMemo(() => getActiveModels(providers), [providers]);
-  const activeModelId = selectedModelId || defaultModelId;
+
+  const mainProviderFirstModel = useMemo(() => {
+    const mainProvider = providers.find((p) => p.id === mainProviderId && p.enabled && p.syncedModels.length > 0);
+    return mainProvider ? `${mainProvider.id}/${mainProvider.syncedModels[0].id}` : '';
+  }, [providers, mainProviderId]);
+
+  const activeModelId = selectedModelId || defaultModelId || mainProviderFirstModel;
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
 
-  const getModelName = (modelId: string) =>
-    models.find((m) => m.id === modelId)?.name || modelId;
+  const getModelName = useCallback((modelId: string) =>
+    models.find((m) => m.id === modelId)?.name || modelId, [models]);
 
   const isNearBottom = useCallback(() => {
     const el = scrollRef.current;
@@ -95,11 +102,24 @@ export function ChatPage() {
   const lastMessageContent = session?.messages?.[session.messages.length - 1]?.content;
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: 'instant',
+    if (!isStreaming) return;
+    const rafId = requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'instant',
+      });
     });
-  }, [session?.messages?.length, lastMessageContent, isStreaming]);
+    return () => cancelAnimationFrame(rafId);
+  }, [lastMessageContent, isStreaming]);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'instant',
+      });
+    }
+  }, [session?.messages?.length]);
 
   const handleScroll = () => {
     setShowScrollBtn(!isNearBottom());
@@ -125,6 +145,7 @@ export function ChatPage() {
       id: crypto.randomUUID(),
       role: 'assistant' as const,
       content: '',
+      modelId: modelId,
       timestamp: Date.now(),
     };
     addMessage(sessionId, assistantMsg);
@@ -140,14 +161,26 @@ export function ChatPage() {
       const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), msgs, m?.providerId, controller.signal);
       let accumulated = '';
       let thinkingAccum = '';
+      let rafId: number | null = null;
+
+      const scheduleFlush = () => {
+        if (rafId !== null) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          updateLastAssistantMessage(sessionId, accumulated);
+        });
+      };
+
       for await (const chunk of stream) {
         if (chunk.type === 'thinking') {
           thinkingAccum += chunk.text;
         } else {
           accumulated += chunk.text;
-          updateLastAssistantMessage(sessionId, accumulated);
+          scheduleFlush();
         }
       }
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      updateLastAssistantMessage(sessionId, accumulated);
       if (thinkingAccum) updateLastAssistantThinking(sessionId, thinkingAccum);
     };
 
@@ -181,7 +214,7 @@ export function ChatPage() {
     }
   };
 
-  const handleRegenerate = async (messageIndex: number) => {
+  const handleRegenerate = useCallback(async (messageIndex: number) => {
     if (!session || isStreaming) return;
 
     const modelId = selectedModelId || session.modelId || activeModelId;
@@ -191,6 +224,7 @@ export function ChatPage() {
       id: crypto.randomUUID(),
       role: 'assistant' as const,
       content: '',
+      modelId: modelId,
       timestamp: Date.now(),
     };
 
@@ -207,14 +241,26 @@ export function ChatPage() {
       const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), msgs, m?.providerId, controller.signal);
       let accumulated = '';
       let thinkingAccum = '';
+      let rafId: number | null = null;
+
+      const scheduleFlush = () => {
+        if (rafId !== null) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          updateLastAssistantMessage(session.id, accumulated);
+        });
+      };
+
       for await (const chunk of stream) {
         if (chunk.type === 'thinking') {
           thinkingAccum += chunk.text;
         } else {
           accumulated += chunk.text;
-          updateLastAssistantMessage(session.id, accumulated);
+          scheduleFlush();
         }
       }
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      updateLastAssistantMessage(session.id, accumulated);
       if (thinkingAccum) updateLastAssistantThinking(session.id, thinkingAccum);
     };
 
@@ -241,7 +287,7 @@ export function ChatPage() {
     } finally {
       setStreaming(false);
     }
-  };
+  }, [session, isStreaming, selectedModelId, activeModelId, models, providers, replaceSessionMessages, setStreaming, updateLastAssistantMessage, updateLastAssistantThinking, fallbackModelId]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
@@ -323,7 +369,7 @@ export function ChatPage() {
                 className="text-center mb-6"
               >
                 <motion.div
-                  className="w-16 h-16 mx-auto mb-4"
+                  className="w-16 h-16 mx-auto mb-4 rounded-2xl overflow-hidden bg-white/[0.06] backdrop-blur-sm border border-white/[0.1] p-2"
                   whileHover={{ scale: 1.2 }}
                   transition={{ type: 'spring', stiffness: 400, damping: 15 }}
                 >
@@ -370,42 +416,50 @@ export function ChatPage() {
           {session?.messages.map((msg, idx) => {
             const isLastEmpty = msg.role === 'assistant' && msg.content === '' && isStreaming && idx === (session?.messages.length ?? 0) - 1;
             if (isLastEmpty) return null;
-            return (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25 }}
-              >
-                {msg.role === 'user' ? (
-                  <UserMessage
-                    content={msg.content}
-                    timestamp={msg.timestamp}
-                    onEdit={(newContent) => {
-                      if (session) {
-                        editMessage(session.id, msg.id, newContent);
-                        const nextMsg = session.messages[idx + 1];
-                        if (nextMsg?.role === 'assistant') {
-                          handleRegenerate(idx + 1);
-                        }
-                      }
-                    }}
-                  />
-                ) : (
-                  <AssistantMessage
-                    content={msg.content}
-                    thinking={msg.thinking}
-                    isStreaming={isStreaming && idx === session.messages.length - 1}
-                    modelId={session?.modelId ?? ''}
-                    timestamp={msg.timestamp}
-                    getModelName={getModelName}
-                    isError={msg.content.startsWith('Error:')}
-                    onRegenerate={() => handleRegenerate(idx)}
-                    onEdit={(newContent) => session && editMessage(session.id, msg.id, newContent)}
-                  />
-                )}
-              </motion.div>
+            const isLastMessage = idx === session.messages.length - 1;
+            const messageContent = msg.role === 'user' ? (
+              <UserMessage
+                content={msg.content}
+                timestamp={msg.timestamp}
+                onEdit={(newContent) => {
+                  if (session) {
+                    editMessage(session.id, msg.id, newContent);
+                    const nextMsg = session.messages[idx + 1];
+                    if (nextMsg?.role === 'assistant') {
+                      handleRegenerate(idx + 1);
+                    }
+                  }
+                }}
+              />
+            ) : (
+              <AssistantMessage
+                content={msg.content}
+                thinking={msg.thinking}
+                isStreaming={isStreaming && idx === session.messages.length - 1}
+                isLatest={idx === session.messages.length - 1}
+                modelId={msg.modelId || session?.modelId || ''}
+                timestamp={msg.timestamp}
+                getModelName={getModelName}
+                isError={msg.content.startsWith('Error:')}
+                onRegenerate={() => handleRegenerate(idx)}
+                onEdit={(newContent) => session && editMessage(session.id, msg.id, newContent)}
+              />
             );
+
+            if (isLastMessage) {
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  {messageContent}
+                </motion.div>
+              );
+            }
+
+            return <div key={msg.id}>{messageContent}</div>;
           })}
 
           {isStreaming && session && session.messages[session.messages.length - 1]?.content === '' && !session.messages[session.messages.length - 1]?.thinking && (
@@ -415,7 +469,7 @@ export function ChatPage() {
               className="flex justify-start"
             >
               <div className="max-w-[85%] flex gap-2.5">
-                <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 mt-1">
+                <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 mt-1">
                   <DotLottieReact
                     data={chpioAvatar}
                     loop
@@ -594,6 +648,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   content,
   thinking,
   isStreaming,
+  isLatest,
   modelId,
   timestamp,
   getModelName,
@@ -604,6 +659,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   content: string;
   thinking?: string;
   isStreaming: boolean;
+  isLatest: boolean;
   modelId: string;
   timestamp: number;
   getModelName: (id: string) => string;
@@ -631,11 +687,11 @@ const AssistantMessage = React.memo(function AssistantMessage({
   return (
     <div className="flex justify-start group">
       <div className="max-w-[85%] min-w-0 overflow-hidden flex gap-2.5">
-        <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 mt-1">
+        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 mt-1">
           <DotLottieReact
             data={chpioAvatar}
-            loop
-            autoplay
+            loop={isLatest}
+            autoplay={isLatest}
             style={{ width: '100%', height: '100%' }}
           />
         </div>
@@ -677,6 +733,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
                   ? 'bg-red-900/40 border-red-400/20 text-red-300/90'
                   : 'bg-slate-900/40 border-white/10 text-white/85'
               }`}
+              style={{ contain: 'content' }}
             >
               {content ? <MessageContent content={content} /> : (
                 <span className="inline-block w-1.5 h-3.5 bg-white/30 rounded-sm animate-pulse" />
@@ -722,14 +779,16 @@ const AssistantMessage = React.memo(function AssistantMessage({
 });
 
 function MessageContent({ content }: { content: string }) {
+  const deferredContent = useDeferredValue(content);
+
   return (
-    <div className="break-words overflow-hidden min-w-0 leading-relaxed" style={{ wordBreak: 'break-word' }}>
+    <div className="break-words overflow-hidden min-w-0 leading-relaxed" style={{ wordBreak: 'break-word', contain: 'content' }}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={mdComponents}
       >
-        {content}
+        {deferredContent}
       </ReactMarkdown>
     </div>
   );

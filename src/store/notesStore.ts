@@ -4,6 +4,9 @@ import type { Note, NoteFolder, NoteTask, NoteLink } from '../types';
 const NOTES_KEY = 'chpio-notes';
 const FOLDERS_KEY = 'chpio-note-folders';
 
+let notesSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let foldersSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
 function loadNotes(): Note[] {
   try {
     const raw = localStorage.getItem(NOTES_KEY);
@@ -20,7 +23,10 @@ function loadNotes(): Note[] {
 }
 
 function saveNotes(notes: Note[]) {
-  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+  if (notesSaveTimer) clearTimeout(notesSaveTimer);
+  notesSaveTimer = setTimeout(() => {
+    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+  }, 300);
 }
 
 function loadFolders(): NoteFolder[] {
@@ -39,7 +45,10 @@ function loadFolders(): NoteFolder[] {
 }
 
 function saveFolders(folders: NoteFolder[]) {
-  localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
+  if (foldersSaveTimer) clearTimeout(foldersSaveTimer);
+  foldersSaveTimer = setTimeout(() => {
+    localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
+  }, 300);
 }
 
 interface NotesState {
@@ -57,6 +66,8 @@ interface NotesState {
   setActiveFolder: (id: string | null) => void;
 
   createNote: (folderId: string) => string;
+  duplicateNote: (id: string) => string | null;
+  moveNote: (id: string, folderId: string) => void;
   updateNote: (id: string, updates: Partial<Pick<Note, 'title' | 'content'>>) => void;
   deleteNote: (id: string) => void;
   archiveNote: (id: string) => void;
@@ -152,6 +163,35 @@ export const useNotesStore = create<NotesState>((set, get) => ({
     saveNotes(notes);
     set({ notes, activeNoteId: id });
     return id;
+  },
+
+  duplicateNote: (id) => {
+    const original = get().notes.find((n) => n.id === id);
+    if (!original) return null;
+    const newId = crypto.randomUUID();
+    const now = Date.now();
+    const duplicate: Note = {
+      ...original,
+      id: newId,
+      title: `${original.title || 'Untitled'} (copy)`,
+      tasks: original.tasks.map((t) => ({ ...t, id: crypto.randomUUID() })),
+      links: original.links?.map((l) => ({ ...l, id: crypto.randomUUID() })),
+      pinned: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const notes = [duplicate, ...get().notes];
+    saveNotes(notes);
+    set({ notes, activeNoteId: newId });
+    return newId;
+  },
+
+  moveNote: (id, folderId) => {
+    const notes = get().notes.map((n) =>
+      n.id === id ? { ...n, folderId, updatedAt: Date.now() } : n
+    );
+    saveNotes(notes);
+    set({ notes });
   },
 
   updateNote: (id, updates) => {

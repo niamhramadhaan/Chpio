@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -38,7 +38,7 @@ export function Modal({ isOpen, onClose, children, title, className = '' }: Moda
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
             onClick={(e) => e.stopPropagation()}
-            className={`relative bg-[#1A201F]/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl max-w-md w-full ${className}`}
+            className={`relative bg-[#1A201F]/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl w-full ${className}`}
           >
             {title && (
               <div className="flex items-center justify-between px-6 pt-5 pb-0 shrink-0">
