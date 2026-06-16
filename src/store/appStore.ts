@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { create } from 'zustand';
 import type { AppView, Feature } from '../types';
 
@@ -24,3 +25,15 @@ export const useAppStore = create<AppState>((set) => ({
   setProfileModalOpen: (open) => set({ profileModalOpen: open }),
   setSettingsModalOpen: (open) => set({ settingsModalOpen: open }),
 }));
+
+export function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isMobile;
+}

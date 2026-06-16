@@ -35,6 +35,7 @@
   #root {
     width: 100vw;
     height: 100vh;
+    height: 100dvh;
     overflow: hidden;
   }
 
@@ -88,6 +89,9 @@
   }
   .scrollbar-none::-webkit-scrollbar {
     display: none;
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
 

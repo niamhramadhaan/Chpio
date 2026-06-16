@@ -47,6 +47,7 @@ export interface ChatSession {
   messages: Message[];
   modelId: string;
   projectId?: string;
+  attachedDocIds?: string[];
   archived: boolean;
   archivedAt?: number;
   createdAt: number;

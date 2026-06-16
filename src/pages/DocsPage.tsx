@@ -1,57 +1,113 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { FileText, Plus, Search, Trash2, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import {
+  X,
+  Eye,
+  Edit3,
+  Bold,
+  Italic,
+  Code,
+  Heading2,
+  List,
+  Link,
+  Quote,
+  Table,
+  Download,
+  Clipboard,
+  Check,
+  FileText,
+} from 'lucide-react';
 import { useDocsStore } from '../store/docsStore';
-
-function relativeTime(ts: number) {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
+import { FileBrowser, type BrowserItem } from '../components/FileBrowser';
 
 export default function DocsPage() {
   const { docs, activeDocId, createDoc, updateDoc, deleteDoc, setActiveDoc, getActiveDoc } = useDocsStore();
-  const [search, setSearch] = useState('');
   const [showList, setShowList] = useState(true);
+  const [previewMode, setPreviewMode] = useState(false);
+  const [copied, setCopied] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const activeDoc = getActiveDoc();
 
-  const filtered = search
-    ? docs.filter((d) => d.title.toLowerCase().includes(search.toLowerCase()))
-    : docs;
+  const browserItems: BrowserItem[] = docs.map((d) => ({
+    id: d.id,
+    name: d.title || 'Untitled',
+    type: 'file' as const,
+    updatedAt: d.updatedAt,
+    wordCount: d.content.trim().split(/\s+/).filter(Boolean).length,
+  }));
 
-  const handleCreate = () => {
+  const handleCreate = useCallback(() => {
     const id = createDoc('Untitled');
     setActiveDoc(id);
     setShowList(false);
-  };
+    setPreviewMode(false);
+  }, [createDoc, setActiveDoc]);
 
-  const handleSelect = (id: string) => {
+  const handleSelect = useCallback((id: string) => {
     setActiveDoc(id);
     setShowList(false);
-  };
+    setPreviewMode(false);
+  }, [setActiveDoc]);
 
-  const handleContentChange = (value: string) => {
+  const handleContentChange = useCallback((value: string) => {
     if (!activeDocId) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       updateDoc(activeDocId, { content: value });
     }, 500);
-  };
+  }, [activeDocId, updateDoc]);
 
-  const handleTitleChange = (value: string) => {
+  const handleTitleChange = useCallback((value: string) => {
     if (!activeDocId) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       updateDoc(activeDocId, { title: value });
     }, 500);
-  };
+  }, [activeDocId, updateDoc]);
+
+  const handleRename = useCallback((id: string, name: string) => {
+    updateDoc(id, { title: name });
+  }, [updateDoc]);
+
+  const insertFormatting = useCallback((prefix: string, suffix: string, placeholder: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const selected = text.substring(start, end) || placeholder;
+    const newText = text.substring(0, start) + prefix + selected + suffix + text.substring(end);
+    textarea.value = newText;
+    handleContentChange(newText);
+    const newCursorStart = start + prefix.length;
+    const newCursorEnd = newCursorStart + selected.length;
+    requestAnimationFrame(() => {
+      textarea.focus();
+      textarea.setSelectionRange(newCursorStart, newCursorEnd);
+    });
+  }, [handleContentChange]);
+
+  const handleExportMd = useCallback(() => {
+    if (!activeDoc) return;
+    const blob = new Blob([activeDoc.content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${activeDoc.title || 'untitled'}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [activeDoc]);
+
+  const handleCopy = useCallback(() => {
+    if (!activeDoc) return;
+    navigator.clipboard.writeText(activeDoc.content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [activeDoc]);
 
   useEffect(() => {
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
@@ -59,69 +115,35 @@ export default function DocsPage() {
 
   const wordCount = activeDoc ? activeDoc.content.trim().split(/\s+/).filter(Boolean).length : 0;
 
+  const toolbarBtn = (icon: React.ReactNode, label: string, onClick: () => void) => (
+    <button
+      onClick={onClick}
+      className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
+      title={label}
+    >
+      {icon}
+    </button>
+  );
+
   return (
     <div className="flex h-full">
+      {/* File browser panel */}
       <div
         className={`flex flex-col border-r border-white/5 ${showList ? 'w-full' : 'w-[30%] min-w-[140px]'} transition-all duration-200`}
       >
-        <div className="p-3 shrink-0">
-          <div className="flex items-center justify-between mb-2">
-            {!showList && <span className="text-[10px] text-white/20">Docs</span>}
-            <button
-              onClick={handleCreate}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-400/15 text-teal-400 text-[10px] hover:bg-teal-400/25 transition-colors cursor-pointer ml-auto"
-            >
-              <Plus className="w-3 h-3" />
-              {!showList && 'New'}
-            </button>
-          </div>
-          <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white/5 border border-white/5">
-            <Search className="w-3 h-3 text-white/30" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..."
-              className="bg-transparent outline-none text-white text-[10px] flex-1 placeholder-white/30"
-            />
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-2 pb-2">
-          {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-white/20">
-              <FileText className="w-8 h-8 mb-2" />
-              <p className="text-[10px]">{search ? 'No matches' : 'No docs yet'}</p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {filtered.map((doc) => (
-                <div
-                  key={doc.id}
-                  onClick={() => handleSelect(doc.id)}
-                  className={`group p-2 rounded-lg cursor-pointer transition-all ${
-                    activeDocId === doc.id
-                      ? 'bg-teal-400/10 border border-teal-400/30'
-                      : 'hover:bg-white/5 border border-transparent'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-white/70 truncate flex-1">{doc.title || 'Untitled'}</span>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); deleteDoc(doc.id); }}
-                      className="p-0.5 rounded text-white/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-                    >
-                      <Trash2 className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                  <span className="text-[9px] text-white/20">{relativeTime(doc.updatedAt)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <FileBrowser
+          items={browserItems}
+          activeId={activeDocId}
+          onSelect={handleSelect}
+          onCreate={handleCreate}
+          onDelete={deleteDoc}
+          onRename={handleRename}
+          emptyIcon={<FileText className="w-8 h-8 mb-2" />}
+          emptyText="No docs yet"
+        />
       </div>
 
+      {/* Editor */}
       <AnimatePresence mode="wait">
         {!showList && activeDoc ? (
           <motion.div
@@ -131,7 +153,8 @@ export default function DocsPage() {
             exit={{ opacity: 0 }}
             className="flex-1 flex flex-col min-w-0"
           >
-            <div className="px-4 pt-3 pb-2 shrink-0 flex items-center gap-2">
+            {/* Header */}
+            <div className="px-3 sm:px-4 pt-3 pb-2 shrink-0 flex items-center gap-2">
               <button
                 onClick={() => setShowList(true)}
                 className="p-1 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
@@ -143,18 +166,70 @@ export default function DocsPage() {
                 defaultValue={activeDoc.title}
                 onBlur={(e) => handleTitleChange(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                className="bg-transparent text-white/80 text-xs font-medium outline-none flex-1"
+                className="bg-transparent text-white/80 text-xs font-medium outline-none flex-1 min-w-0"
                 placeholder="Document title..."
               />
-              <span className="text-[9px] text-white/15">{wordCount} words</span>
+              <span className="text-[9px] text-white/15 shrink-0">{wordCount}w</span>
+
+              {/* Action buttons */}
+              <div className="flex items-center gap-0.5 shrink-0">
+                <button
+                  onClick={() => setPreviewMode(!previewMode)}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    previewMode ? 'bg-teal-400/15 text-teal-400' : 'text-white/30 hover:text-white/60 hover:bg-white/5'
+                  }`}
+                  title={previewMode ? 'Edit' : 'Preview'}
+                >
+                  {previewMode ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+                <button
+                  onClick={handleCopy}
+                  className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
+                  title="Copy"
+                >
+                  {copied ? <Check className="w-3.5 h-3.5 text-teal-400" /> : <Clipboard className="w-3.5 h-3.5" />}
+                </button>
+                <button
+                  onClick={handleExportMd}
+                  className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
+                  title="Export .md"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
-            <div className="flex-1 px-4 pb-4 min-h-0">
-              <textarea
-                defaultValue={activeDoc.content}
-                onChange={(e) => handleContentChange(e.target.value)}
-                placeholder="Start writing..."
-                className="w-full h-full bg-[#0f1413]/60 text-white/80 font-mono text-xs p-4 rounded-xl border border-white/5 outline-none resize-none placeholder-white/20"
-              />
+
+            {/* Formatting toolbar (hidden in preview mode) */}
+            {!previewMode && (
+              <div className="px-3 sm:px-4 pb-1 shrink-0 flex items-center gap-0.5 border-b border-white/5">
+                {toolbarBtn(<Bold className="w-3.5 h-3.5" />, 'Bold', () => insertFormatting('**', '**', 'bold text'))}
+                {toolbarBtn(<Italic className="w-3.5 h-3.5" />, 'Italic', () => insertFormatting('*', '*', 'italic text'))}
+                {toolbarBtn(<Code className="w-3.5 h-3.5" />, 'Code', () => insertFormatting('`', '`', 'code'))}
+                {toolbarBtn(<Heading2 className="w-3.5 h-3.5" />, 'Heading', () => insertFormatting('\n## ', '\n', 'Heading'))}
+                {toolbarBtn(<List className="w-3.5 h-3.5" />, 'List', () => insertFormatting('\n- ', '\n', 'list item'))}
+                {toolbarBtn(<Link className="w-3.5 h-3.5" />, 'Link', () => insertFormatting('[', '](url)', 'link text'))}
+                {toolbarBtn(<Quote className="w-3.5 h-3.5" />, 'Quote', () => insertFormatting('\n> ', '\n', 'quote'))}
+                {toolbarBtn(<Table className="w-3.5 h-3.5" />, 'Table', () => insertFormatting('\n| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n| ', ' | data | data |\n', 'data'))}
+              </div>
+            )}
+
+            {/* Content area */}
+            <div className="flex-1 px-3 sm:px-4 pb-3 pt-2 min-h-0">
+              {previewMode ? (
+                <div className="w-full h-full overflow-y-auto bg-[#0f1413]/60 text-white/80 text-xs p-4 rounded-xl border border-white/5 prose prose-invert prose-sm max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {activeDoc.content || '*No content*'}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <textarea
+                  ref={textareaRef}
+                  defaultValue={activeDoc.content}
+                  onChange={(e) => handleContentChange(e.target.value)}
+                  placeholder="Start writing... (Markdown supported)"
+                  className="w-full h-full bg-[#0f1413]/60 text-white/80 text-xs p-4 rounded-xl border border-white/5 outline-none resize-none placeholder-white/20 leading-relaxed"
+                />
+              )}
             </div>
           </motion.div>
         ) : !showList ? (

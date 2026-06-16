@@ -17,6 +17,7 @@ function loadSessions(): ChatSession[] {
       archived: s.archived ?? false,
       archivedAt: s.archivedAt ?? undefined,
       projectId: s.projectId ?? undefined,
+      attachedDocIds: s.attachedDocIds ?? [],
     }));
   } catch {
     return [];
@@ -46,6 +47,7 @@ interface ChatState {
   updateSessionTitle: (sessionId: string, title: string) => void;
   getActiveSession: () => ChatSession | undefined;
   moveSessionToProject: (sessionId: string, projectId: string | undefined) => void;
+  setAttachedDocs: (sessionId: string, docIds: string[]) => void;
   editMessage: (sessionId: string, messageId: string, content: string) => void;
 }
 
@@ -200,6 +202,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
   moveSessionToProject: (sessionId, projectId) => {
     const sessions = get().sessions.map((s) =>
       s.id === sessionId ? { ...s, projectId, updatedAt: Date.now() } : s
+    );
+    saveSessions(sessions);
+    set({ sessions });
+  },
+
+  setAttachedDocs: (sessionId, docIds) => {
+    const sessions = get().sessions.map((s) =>
+      s.id === sessionId ? { ...s, attachedDocIds: docIds, updatedAt: Date.now() } : s
     );
     saveSessions(sessions);
     set({ sessions });

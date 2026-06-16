@@ -1,11 +1,16 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Paperclip, Globe, Code2, Brain, ArrowUp, ChevronDown, Search, X, Square } from 'lucide-react';
+import { Paperclip, Brain, ArrowUp, ChevronDown, Search, X, Square, BookOpen, Check, Database } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useChatStore } from '../store/chatStore';
 import { useSettingsStore } from '../store/settingsStore';
+import { useDocsStore } from '../store/docsStore';
+import { useMemoryStore } from '../store/memoryStore';
 import { streamChat } from '../services/providers';
 import { getActiveModels, stripProviderPrefix, getModelProvider } from '../utils/models';
+import { buildDocContextSystemMessage } from '../utils/docContext';
+import { parseDocUpdates, executeDocUpdates, stripDocUpdates, formatDocUpdateSummary } from '../utils/parseDocUpdates';
+import { buildMemoryContextSystemMessage } from '../utils/memoryContext';
 import { PortalDropdown } from './ui/PortalDropdown';
 
 const PROVIDER_LOGOS: Record<string, string> = {
@@ -61,11 +66,22 @@ export function CommandBar() {
   const [showModels, setShowModels] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
   const [showProviderSelector, setShowProviderSelector] = useState(false);
-  const [toggles, setToggles] = useState({ web: false, code: false, think: false });
+  const [showDocPicker, setShowDocPicker] = useState(false);
+  const [toggles, setToggles] = useState({ think: false, memory: true });
   const [attachedFile, setAttachedFile] = useState<{ name: string; text: string } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const providerTriggerRef = useRef<HTMLDivElement>(null);
+  const docPickerRef = useRef<HTMLDivElement>(null);
+  const dragCounter = useRef(0);
+
+  const docs = useDocsStore((s) => s.docs);
+  const memories = useMemoryStore((s) => s.memories);
+  const activeSession = useChatStore((s) => s.sessions.find((sess) => sess.id === s.activeSessionId));
+  const attachedDocIds = activeSession?.attachedDocIds ?? [];
+  const setAttachedDocs = useChatStore((s) => s.setAttachedDocs);
+  const attachedDocs = useMemo(() => docs.filter((d) => attachedDocIds.includes(d.id)), [docs, attachedDocIds]);
 
   const mainProviderFirstModel = useMemo(() => {
     const mainProvider = providers.find((p) => p.id === mainProviderId && p.enabled && p.syncedModels.length > 0);
@@ -78,6 +94,14 @@ export function CommandBar() {
   const activeProviderLogo = activeProviderId ? PROVIDER_LOGOS[activeProviderId] : null;
   const activeProviderName = activeProviderId ? providers.find((p) => p.id === activeProviderId)?.name : null;
   const isHero = view === 'onboarding';
+
+  const toggleDocAttach = (docId: string) => {
+    if (!activeSession) return;
+    const next = attachedDocIds.includes(docId)
+      ? attachedDocIds.filter((id) => id !== docId)
+      : [...attachedDocIds, docId];
+    setAttachedDocs(activeSession.id, next);
+  };
 
   const handleSubmit = async () => {
     if (!input.trim() || isStreaming || isArchived) return;
@@ -127,13 +151,23 @@ export function CommandBar() {
       const baseUrl = p?.baseUrl || 'https://openrouter.ai/api/v1';
       const apiKey = p?.apiKey || undefined;
 
+      const session = useChatStore.getState().sessions.find((s) => s.id === sessionId);
+      const sessionDocs = docs.filter((d) => session?.attachedDocIds?.includes(d.id));
+      const docSystemMsg = buildDocContextSystemMessage(sessionDocs);
+      const memorySystemMsg = toggles.memory ? buildMemoryContextSystemMessage(memories) : null;
+
       const chatMessages = useChatStore
         .getState()
         .getActiveSession()
         ?.messages.filter((msg) => msg.content)
         .map((msg) => ({ role: msg.role as 'user' | 'assistant', content: msg.content })) || [];
 
-      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), chatMessages, pId, controller.signal, toggles.think);
+      const combinedSystem = [memorySystemMsg, docSystemMsg].filter(Boolean).join('\n\n');
+      const messages = combinedSystem
+        ? [{ role: 'system' as const, content: combinedSystem }, ...chatMessages]
+        : chatMessages;
+
+      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), messages, pId, controller.signal, toggles.think);
       let accumulated = '';
       let thinkingAccum = '';
       let rafId: number | null = null;
@@ -155,6 +189,15 @@ export function CommandBar() {
         }
       }
       if (rafId !== null) cancelAnimationFrame(rafId);
+
+      // Parse and execute doc updates
+      const updates = parseDocUpdates(accumulated);
+      const results = executeDocUpdates(updates);
+      const summary = formatDocUpdateSummary(results);
+      if (summary) {
+        accumulated = stripDocUpdates(accumulated) + '\n\n> ' + summary;
+      }
+
       updateLastAssistantMessage(sessionId, accumulated);
       if (thinkingAccum) {
         updateLastAssistantThinking(sessionId, thinkingAccum);
@@ -178,6 +221,60 @@ export function CommandBar() {
     } finally {
       setStreaming(false);
     }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    readFile(file);
+  };
+
+  const readFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAttachedFile({ name: file.name, text: reader.result as string });
+    };
+    reader.readAsText(file);
+  };
+
+  const handleFilePicker = () => {
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.txt,.md,.json,.csv,.js,.ts,.tsx,.jsx,.py,.html,.css,.yaml,.yml,.toml,.xml,.log,.env,.sh,.rb,.go,.rs,.java,.c,.cpp,.h';
+    fileInput.onchange = () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+      readFile(file);
+    };
+    fileInput.click();
   };
 
   useEffect(() => {
@@ -211,7 +308,7 @@ export function CommandBar() {
     );
   }, [models, activeProviderId, modelSearch]);
 
-  const toggleButton = (key: keyof typeof toggles, icon: typeof Globe, label: string) => (
+  const toggleButton = (key: keyof typeof toggles, icon: typeof Brain, label: string) => (
     <button
       key={key}
       onClick={() => setToggles((t) => ({ ...t, [key]: !t[key] }))}
@@ -231,12 +328,25 @@ export function CommandBar() {
     <motion.div
       layout
       transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       className={`
-        w-full glass rounded-2xl shadow-2xl overflow-hidden
+        w-full glass rounded-2xl shadow-2xl overflow-hidden relative
         ${isHero ? 'max-w-2xl' : 'max-w-4xl'}
       `}
     >
-      <div className="p-4">
+      {/* Drag overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 bg-teal-400/10 border-2 border-dashed border-teal-400/40 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+          <div className="text-center">
+            <Paperclip className="w-6 h-6 text-teal-400/60 mx-auto mb-1" />
+            <p className="text-xs text-teal-400/60">Drop file to attach</p>
+          </div>
+        </div>
+      )}
+      <div className="p-3 sm:p-4">
         {attachedFile && (
           <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg bg-white/5 border border-white/5">
             <Paperclip className="w-3 h-3 text-white/30 shrink-0" />
@@ -246,7 +356,20 @@ export function CommandBar() {
             </button>
           </div>
         )}
-        <div className="flex items-center gap-3">
+        {attachedDocs.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {attachedDocs.map((doc) => (
+              <div key={doc.id} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-teal-400/10 border border-teal-400/20">
+                <BookOpen className="w-3 h-3 text-teal-400/60 shrink-0" />
+                <span className="text-[11px] text-teal-400/70 truncate max-w-[120px]">{doc.title}</span>
+                <button onClick={() => toggleDocAttach(doc.id)} className="text-teal-400/40 hover:text-teal-400/70 cursor-pointer">
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center gap-2 sm:gap-3">
           <div ref={providerTriggerRef} className="relative">
             <motion.button
               className="w-7 h-7 shrink-0 rounded-md overflow-hidden cursor-pointer flex items-center justify-center bg-white/5 hover:bg-white/10 transition-colors"
@@ -328,12 +451,12 @@ export function CommandBar() {
           <div ref={triggerRef}>
             <button
               onClick={() => setShowModels(!showModels)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-xs transition-all cursor-pointer border border-white/5"
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-xs transition-all cursor-pointer border border-white/5"
             >
               {activeModel ? (
-                <span className="truncate max-w-[120px]">{activeModel.name}</span>
+                <span className="truncate max-w-[60px] sm:max-w-[120px]">{activeModel.name}</span>
               ) : (
-                <span>Select Model</span>
+                <span className="hidden sm:inline">Select Model</span>
               )}
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showModels ? 'rotate-180' : ''}`} />
             </button>
@@ -341,35 +464,88 @@ export function CommandBar() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-4 pb-3 pt-0">
+      <div className="flex items-center justify-between px-3 sm:px-4 pb-2 sm:pb-3 pt-0">
         <div className="flex items-center gap-1.5">
-          {toggleButton('web', Globe, 'Web')}
-          {toggleButton('code', Code2, 'Code')}
           {toggleButton('think', Brain, 'Think')}
+          {toggleButton('memory', Database, 'Memory')}
+
+          {(toggles.memory && memories.length > 0) && (
+            <span className="text-[9px] text-white/20 ml-0.5">{memories.length}</span>
+          )}
 
           <div className="w-px h-4 bg-white/10 mx-1" />
 
           <button
-            onClick={() => {
-              const fileInput = document.createElement('input');
-              fileInput.type = 'file';
-              fileInput.onchange = () => {
-                const file = fileInput.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = () => {
-                  setAttachedFile({ name: file.name, text: reader.result as string });
-                };
-                reader.readAsText(file);
-              };
-              fileInput.click();
-            }}
+            onClick={handleFilePicker}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white/40 hover:text-white/60 hover:bg-white/5 transition-all cursor-pointer border border-transparent"
             title="Attach file"
           >
             <Paperclip className="w-3.5 h-3.5" />
             {isHero && <span>Attach</span>}
           </button>
+
+          <div ref={docPickerRef}>
+            <button
+              onClick={() => setShowDocPicker(!showDocPicker)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer border border-transparent ${
+                attachedDocIds.length > 0
+                  ? 'text-teal-400/70 hover:text-teal-400 bg-teal-400/5'
+                  : 'text-white/40 hover:text-white/60 hover:bg-white/5'
+              }`}
+              title="Attach docs for AI context"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              {attachedDocIds.length > 0 && (
+                <span className="text-[10px]">{attachedDocIds.length}</span>
+              )}
+              {isHero && <span>Docs</span>}
+            </button>
+          </div>
+
+          <PortalDropdown
+            isOpen={showDocPicker}
+            triggerRef={docPickerRef}
+            align="left"
+            direction="up"
+            onClose={() => setShowDocPicker(false)}
+            className="w-56 glass rounded-xl border border-white/10 shadow-2xl overflow-hidden"
+          >
+            <div className="p-2 border-b border-white/5">
+              <p className="text-[9px] text-white/30 font-medium px-1">Attach docs as AI context</p>
+            </div>
+            <div className="max-h-48 overflow-y-auto p-1">
+              {docs.length === 0 ? (
+                <p className="text-[10px] text-white/20 text-center py-4">No docs yet</p>
+              ) : (
+                docs.map((doc) => {
+                  const isSelected = attachedDocIds.includes(doc.id);
+                  return (
+                    <button
+                      key={doc.id}
+                      onClick={() => toggleDocAttach(doc.id)}
+                      className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left transition-colors cursor-pointer ${
+                        isSelected ? 'bg-teal-400/10' : 'hover:bg-white/5'
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                        isSelected ? 'bg-teal-400/20 border-teal-400/40' : 'border-white/20'
+                      }`}>
+                        {isSelected && <Check className="w-2.5 h-2.5 text-teal-400" />}
+                      </div>
+                      <span className="text-[11px] text-white/70 truncate">{doc.title || 'Untitled'}</span>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            {docs.length > 0 && (
+              <div className="p-1.5 border-t border-white/5">
+                <p className="text-[9px] text-white/20 px-1">
+                  {attachedDocIds.length === 0 ? 'Select docs for AI to read' : `${attachedDocIds.length} doc${attachedDocIds.length > 1 ? 's' : ''} attached`}
+                </p>
+              </div>
+            )}
+          </PortalDropdown>
         </div>
 
         {isStreaming ? (

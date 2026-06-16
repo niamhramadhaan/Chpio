@@ -16,14 +16,26 @@ import {
   Search,
   Brain,
   Archive,
+  Menu,
+  Download,
+  Clipboard,
+  FileText,
+  Bookmark,
+  X,
 } from 'lucide-react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { useChatStore } from '../store/chatStore';
 import { useSettingsStore } from '../store/settingsStore';
-import { useAppStore } from '../store/appStore';
+import { useAppStore, useIsMobile } from '../store/appStore';
 import { useProjectStore } from '../store/projectStore';
+import { useDocsStore } from '../store/docsStore';
+import { useMemoryStore } from '../store/memoryStore';
 import { streamChat } from '../services/providers';
 import { getActiveModels, stripProviderPrefix } from '../utils/models';
+import { buildDocContextSystemMessage } from '../utils/docContext';
+import { parseDocUpdates, executeDocUpdates, stripDocUpdates, formatDocUpdateSummary } from '../utils/parseDocUpdates';
+import { buildMemoryContextSystemMessage, summarizeForMemory } from '../utils/memoryContext';
+import { exportChatAsMd, exportChatAsTxt, copyChatToClipboard, downloadFile, getExportFilename } from '../utils/exportChat';
 import chpioAvatar from '../assets/chpio-avatar.json';
 
 const LazyCodeBlock = React.lazy(() => import('../components/CodeBlock'));
@@ -58,6 +70,7 @@ export function ChatPage() {
   const projects = useProjectStore((s) => s.projects);
   const setView = useAppStore((s) => s.setView);
   const setActiveFeature = useAppStore((s) => s.setActiveFeature);
+  const isMobile = useIsMobile();
   const createSession = useChatStore((s) => s.createSession);
   const addMessage = useChatStore((s) => s.addMessage);
   const updateLastAssistantMessage = useChatStore((s) => s.updateLastAssistantMessage);
@@ -82,8 +95,15 @@ export function ChatPage() {
   const activeModelId = selectedModelId || defaultModelId || mainProviderFirstModel;
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [exportCopied, setExportCopied] = useState(false);
+  const [rememberingMsgId, setRememberingMsgId] = useState<string | null>(null);
+  const [rememberedMsgId, setRememberedMsgId] = useState<string | null>(null);
+  const [nothingToRemember, setNothingToRemember] = useState<string | null>(null);
+  const createMemory = useMemoryStore((s) => s.createMemory);
 
   const getModelName = useCallback((modelId: string) =>
     models.find((m) => m.id === modelId)?.name || modelId, [models]);
@@ -102,6 +122,17 @@ export function ChatPage() {
   }, []);
 
   const scrollContent = isStreaming ? streamingContent : null;
+
+  useEffect(() => {
+    if (!showExport) return;
+    const handler = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) {
+        setShowExport(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showExport]);
 
   useEffect(() => {
     if (!isStreaming) return;
@@ -160,7 +191,20 @@ export function ChatPage() {
       const p = providers.find((x) => x.id === m?.providerId);
       const baseUrl = p?.baseUrl || 'https://openrouter.ai/api/v1';
       const apiKey = p?.apiKey || undefined;
-      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), msgs, m?.providerId, controller.signal);
+
+      const session = useChatStore.getState().sessions.find((s) => s.id === sessionId);
+      const allDocs = useDocsStore.getState().docs;
+      const sessionDocs = allDocs.filter((d) => session?.attachedDocIds?.includes(d.id));
+      const docSystemMsg = buildDocContextSystemMessage(sessionDocs);
+      const allMemories = useMemoryStore.getState().memories;
+      const memorySystemMsg = buildMemoryContextSystemMessage(allMemories);
+
+      const combinedSystem = [memorySystemMsg, docSystemMsg].filter(Boolean).join('\n\n');
+      const messages = combinedSystem
+        ? [{ role: 'system' as const, content: combinedSystem }, ...msgs]
+        : msgs;
+
+      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), messages, m?.providerId, controller.signal);
       let accumulated = '';
       let thinkingAccum = '';
       let rafId: number | null = null;
@@ -182,6 +226,15 @@ export function ChatPage() {
         }
       }
       if (rafId !== null) cancelAnimationFrame(rafId);
+
+      // Parse and execute doc updates
+      const updates = parseDocUpdates(accumulated);
+      const results = executeDocUpdates(updates);
+      const summary = formatDocUpdateSummary(results);
+      if (summary) {
+        accumulated = stripDocUpdates(accumulated) + '\n\n> ' + summary;
+      }
+
       updateLastAssistantMessage(sessionId, accumulated);
       if (thinkingAccum) updateLastAssistantThinking(sessionId, thinkingAccum);
     };
@@ -240,7 +293,19 @@ export function ChatPage() {
       const p = providers.find((x) => x.id === m?.providerId);
       const baseUrl = p?.baseUrl || 'https://openrouter.ai/api/v1';
       const apiKey = p?.apiKey || undefined;
-      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), msgs, m?.providerId, controller.signal);
+
+      const allDocs = useDocsStore.getState().docs;
+      const sessionDocs = allDocs.filter((d) => session.attachedDocIds?.includes(d.id));
+      const docSystemMsg = buildDocContextSystemMessage(sessionDocs);
+      const allMemories = useMemoryStore.getState().memories;
+      const memorySystemMsg = buildMemoryContextSystemMessage(allMemories);
+
+      const combinedSystem = [memorySystemMsg, docSystemMsg].filter(Boolean).join('\n\n');
+      const messages = combinedSystem
+        ? [{ role: 'system' as const, content: combinedSystem }, ...msgs]
+        : msgs;
+
+      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), messages, m?.providerId, controller.signal);
       let accumulated = '';
       let thinkingAccum = '';
       let rafId: number | null = null;
@@ -262,6 +327,14 @@ export function ChatPage() {
         }
       }
       if (rafId !== null) cancelAnimationFrame(rafId);
+
+      const updates = parseDocUpdates(accumulated);
+      const results = executeDocUpdates(updates);
+      const summary = formatDocUpdateSummary(results);
+      if (summary) {
+        accumulated = stripDocUpdates(accumulated) + '\n\n> ' + summary;
+      }
+
       updateLastAssistantMessage(session.id, accumulated);
       if (thinkingAccum) updateLastAssistantThinking(session.id, thinkingAccum);
     };
@@ -307,9 +380,47 @@ export function ChatPage() {
     if (idx >= 0) handleRegenerate(idx);
   }, [session, handleRegenerate]);
 
+  const handleRemember = useCallback(async (msgId: string, content: string) => {
+    if (rememberingMsgId) return;
+    setRememberingMsgId(msgId);
+
+    try {
+      const m = models.find((x) => x.id === activeModelId);
+      const pId = m?.providerId;
+      const p = providers.find((x) => x.id === pId);
+      const baseUrl = p?.baseUrl || 'https://openrouter.ai/api/v1';
+      const apiKey = p?.apiKey || undefined;
+
+      if (!m || !p) {
+        setNothingToRemember(msgId);
+        setTimeout(() => setNothingToRemember(null), 2000);
+        return;
+      }
+
+      const summary = await summarizeForMemory(content, (msgs) => {
+        return streamChat(baseUrl, apiKey, stripProviderPrefix(m.id), msgs, pId);
+      });
+
+      if (summary) {
+        createMemory(summary, ['from-chat']);
+        setRememberedMsgId(msgId);
+        setTimeout(() => setRememberedMsgId(null), 2000);
+      } else {
+        setNothingToRemember(msgId);
+        setTimeout(() => setNothingToRemember(null), 2000);
+      }
+    } catch {
+      setNothingToRemember(msgId);
+      setTimeout(() => setNothingToRemember(null), 2000);
+      setTimeout(() => setRememberedMsgId(null), 2000);
+    } finally {
+      setRememberingMsgId(null);
+    }
+  }, [rememberingMsgId, activeModelId, models, providers, createMemory]);
+
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
-      <div className="px-6 pt-4 pb-2 shrink-0 flex items-center gap-2">
+      <div className="px-3 sm:px-6 pt-3 sm:pt-4 pb-2 shrink-0 flex items-center gap-2">
         <motion.button
           onClick={() => {
             setView('onboarding');
@@ -327,6 +438,16 @@ export function ChatPage() {
             style={{ width: '100%', height: '100%' }}
           />
         </motion.button>
+
+        {isMobile && (
+          <button
+            onClick={() => setActiveFeature('notes')}
+            className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors cursor-pointer"
+            title="Menu"
+          >
+            <Menu className="w-4 h-4" />
+          </button>
+        )}
 
         {session && (() => {
           const project = session.projectId ? projects.find((p) => p.id === session.projectId) : null;
@@ -360,13 +481,63 @@ export function ChatPage() {
                   {session.title}
                 </button>
               )}
+
+              <div className="ml-auto relative" ref={exportRef}>
+                <button
+                  onClick={() => setShowExport(!showExport)}
+                  className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
+                  title="Export chat"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                </button>
+
+                {showExport && (
+                  <div className="absolute right-0 top-full mt-1 w-44 glass rounded-xl border border-white/10 shadow-2xl overflow-hidden z-50">
+                    <button
+                      onClick={() => {
+                        const text = copyChatToClipboard(session);
+                        navigator.clipboard.writeText(text);
+                        setExportCopied(true);
+                        setTimeout(() => setExportCopied(false), 2000);
+                        setShowExport(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-white/70 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                    >
+                      {exportCopied ? <Check className="w-3.5 h-3.5 text-teal-400" /> : <Clipboard className="w-3.5 h-3.5" />}
+                      {exportCopied ? 'Copied!' : 'Copy all'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        const md = exportChatAsMd(session);
+                        downloadFile(md, getExportFilename(session, 'md'), 'text/markdown');
+                        setShowExport(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-white/70 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      Export .md
+                    </button>
+                    <button
+                      onClick={() => {
+                        const txt = exportChatAsTxt(session);
+                        downloadFile(txt, getExportFilename(session, 'txt'), 'text/plain');
+                        setShowExport(false);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs text-white/70 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      Export .txt
+                    </button>
+                  </div>
+                )}
+              </div>
             </>
           );
         })()}
       </div>
 
       {session?.archived && (
-        <div className="mx-6 mb-2 px-3 py-2 rounded-lg bg-amber-400/10 border border-amber-400/20 flex items-center gap-2 shrink-0">
+        <div className="mx-3 sm:mx-6 mb-2 px-3 py-2 rounded-lg bg-amber-400/10 border border-amber-400/20 flex items-center gap-2 shrink-0">
           <Archive className="w-3.5 h-3.5 text-amber-400/70" />
           <span className="text-[11px] text-amber-400/70">This conversation is archived</span>
         </div>
@@ -375,7 +546,7 @@ export function ChatPage() {
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-8 pb-4"
+        className="flex-1 overflow-y-auto px-3 sm:px-6 lg:px-8 pb-4"
       >
         <div className="max-w-5xl mx-auto w-full space-y-6">
           {!session && (
@@ -406,7 +577,7 @@ export function ChatPage() {
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: 0.4 }}
-                className="flex flex-wrap justify-center gap-2 max-w-2xl"
+                className="flex flex-wrap justify-center gap-2 max-w-2xl px-2"
               >
                 {suggestedPrompts.map((prompt, i) => {
                   const Icon = prompt.icon;
@@ -446,6 +617,10 @@ export function ChatPage() {
                 content={msg.content}
                 timestamp={msg.timestamp}
                 onEdit={(newContent) => handleEditMessage(msg.id, newContent)}
+                onRemember={() => handleRemember(msg.id, msg.content)}
+                isRemembering={rememberingMsgId === msg.id}
+                isRemembered={rememberedMsgId === msg.id}
+                isNothingToRemember={nothingToRemember === msg.id}
               />
             ) : (
               <AssistantMessage
@@ -459,6 +634,10 @@ export function ChatPage() {
                 isError={msg.content.startsWith('Error:')}
                 onRegenerate={() => handleRegenerateMessage(msg.id)}
                 onEdit={(newContent) => handleEditMessage(msg.id, newContent)}
+                onRemember={() => handleRemember(msg.id, msg.content)}
+                isRemembering={rememberingMsgId === msg.id}
+                isRemembered={rememberedMsgId === msg.id}
+                isNothingToRemember={nothingToRemember === msg.id}
               />
             );
 
@@ -534,7 +713,7 @@ export function ChatPage() {
   );
 }
 
-const UserMessage = React.memo(function UserMessage({ content, timestamp, onEdit }: { content: string; timestamp: number; onEdit: (newContent: string) => void }) {
+const UserMessage = React.memo(function UserMessage({ content, timestamp, onEdit, onRemember, isRemembering, isRemembered, isNothingToRemember }: { content: string; timestamp: number; onEdit: (newContent: string) => void; onRemember: () => void; isRemembering: boolean; isRemembered: boolean; isNothingToRemember: boolean }) {
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(content);
@@ -611,6 +790,14 @@ const UserMessage = React.memo(function UserMessage({ content, timestamp, onEdit
               >
                 {copied ? <Check className="w-3 h-3 text-teal-400" /> : <Copy className="w-3 h-3" />}
               </button>
+              <button
+                onClick={onRemember}
+                disabled={isRemembering}
+                className="p-1 rounded-md text-white/40 hover:text-teal-400 hover:bg-white/10 transition-all cursor-pointer disabled:opacity-40"
+                title="Save to memory"
+              >
+                {isRemembered ? <Check className="w-3 h-3 text-teal-400" /> : isNothingToRemember ? <X className="w-3 h-3 text-white/30" /> : isRemembering ? <span className="w-3 h-3 block rounded-full border-2 border-teal-400/40 border-t-teal-400 animate-spin" /> : <Bookmark className="w-3 h-3" />}
+              </button>
             </div>
           </div>
         </div>
@@ -671,6 +858,10 @@ const AssistantMessage = React.memo(function AssistantMessage({
   isError,
   onRegenerate,
   onEdit,
+  onRemember,
+  isRemembering,
+  isRemembered,
+  isNothingToRemember,
 }: {
   content: string;
   thinking?: string;
@@ -682,6 +873,10 @@ const AssistantMessage = React.memo(function AssistantMessage({
   isError: boolean;
   onRegenerate: () => void;
   onEdit: (newContent: string) => void;
+  onRemember: () => void;
+  isRemembering: boolean;
+  isRemembered: boolean;
+  isNothingToRemember: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -794,6 +989,14 @@ const AssistantMessage = React.memo(function AssistantMessage({
                 title="Regenerate"
               >
                 <RefreshCw className="w-3 h-3" />
+              </button>
+              <button
+                onClick={onRemember}
+                disabled={isRemembering}
+                className="p-1 rounded-md text-white/40 hover:text-teal-400 hover:bg-white/10 transition-all cursor-pointer disabled:opacity-40"
+                title="Save to memory"
+              >
+                {isRemembered ? <Check className="w-3 h-3 text-teal-400" /> : isNothingToRemember ? <X className="w-3 h-3 text-white/30" /> : isRemembering ? <span className="w-3 h-3 block rounded-full border-2 border-teal-400/40 border-t-teal-400 animate-spin" /> : <Bookmark className="w-3 h-3" />}
               </button>
             </div>
           </div>

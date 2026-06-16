@@ -14,11 +14,12 @@ function relativeTime(ts: number) {
   return `${days}d ago`;
 }
 
+type FormMode = { type: 'create' } | { type: 'edit'; id: string } | null;
+
 export default function MemoryPage() {
   const { memories, createMemory, updateMemory, deleteMemory, searchMemories } = useMemoryStore();
   const [query, setQuery] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
+  const [formMode, setFormMode] = useState<FormMode>(null);
   const [formContent, setFormContent] = useState('');
   const [formTags, setFormTags] = useState('');
 
@@ -26,32 +27,52 @@ export default function MemoryPage() {
 
   const handleSave = () => {
     const tags = formTags.split(',').map((t) => t.trim()).filter(Boolean);
-    if (editId) {
-      updateMemory(editId, { content: formContent, tags });
+    if (!formContent.trim()) return;
+
+    if (formMode?.type === 'edit') {
+      updateMemory(formMode.id, { content: formContent, tags });
     } else {
       createMemory(formContent, tags);
     }
+
     setFormContent('');
     setFormTags('');
-    setShowForm(false);
-    setEditId(null);
+    setFormMode(null);
   };
 
   const handleEdit = (id: string) => {
     const m = memories.find((mem) => mem.id === id);
     if (!m) return;
-    setEditId(id);
     setFormContent(m.content);
     setFormTags(m.tags.join(', '));
-    setShowForm(true);
+    setFormMode({ type: 'edit', id });
+  };
+
+  const handleAdd = () => {
+    setFormContent('');
+    setFormTags('');
+    setFormMode({ type: 'create' });
   };
 
   const handleCancel = () => {
     setFormContent('');
     setFormTags('');
-    setShowForm(false);
-    setEditId(null);
+    setFormMode(null);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      handleSave();
+    }
+    if (e.key === 'Escape') {
+      handleCancel();
+    }
+  };
+
+  const isOpen = formMode !== null;
+  const isEdit = formMode?.type === 'edit';
+  const formKey = formMode?.type === 'edit' ? formMode.id : 'create';
 
   return (
     <div className="flex flex-col h-full">
@@ -59,7 +80,7 @@ export default function MemoryPage() {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium text-white/70">Memory</h2>
           <button
-            onClick={() => { setShowForm(true); setEditId(null); setFormContent(''); setFormTags(''); }}
+            onClick={handleAdd}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-teal-400/15 text-teal-400 text-xs hover:bg-teal-400/25 transition-colors cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -85,8 +106,9 @@ export default function MemoryPage() {
       </div>
 
       <AnimatePresence>
-        {showForm && (
+        {isOpen && (
           <motion.div
+            key={formKey}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -97,6 +119,7 @@ export default function MemoryPage() {
               <textarea
                 value={formContent}
                 onChange={(e) => setFormContent(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="What do you want to remember?"
                 rows={3}
                 className="w-full bg-transparent text-white/80 text-xs outline-none resize-none placeholder-white/20 mb-2"
@@ -106,6 +129,7 @@ export default function MemoryPage() {
                 type="text"
                 value={formTags}
                 onChange={(e) => setFormTags(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="Tags (comma-separated)"
                 className="w-full bg-transparent text-white/60 text-xs outline-none placeholder-white/20 mb-3"
               />
@@ -121,7 +145,7 @@ export default function MemoryPage() {
                   disabled={!formContent.trim()}
                   className="px-3 py-1.5 rounded-lg text-xs bg-teal-400/15 text-teal-400 hover:bg-teal-400/25 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                  {editId ? 'Update' : 'Save'}
+                  {isEdit ? 'Update' : 'Save'}
                 </button>
               </div>
             </div>
@@ -141,7 +165,11 @@ export default function MemoryPage() {
             {filtered.map((m) => (
               <div
                 key={m.id}
-                className="group p-3 rounded-xl bg-[#1A201F]/60 border border-white/5 hover:border-teal-400/20 hover:bg-white/5 transition-all"
+                className={`group p-3 rounded-xl border transition-all ${
+                  formMode?.type === 'edit' && formMode.id === m.id
+                    ? 'bg-teal-400/10 border-teal-400/30'
+                    : 'bg-[#1A201F]/60 border-white/5 hover:border-teal-400/20 hover:bg-white/5'
+                }`}
               >
                 <p className="text-xs text-white/70 leading-relaxed line-clamp-2 whitespace-pre-wrap">{m.content}</p>
                 {m.tags.length > 0 && (

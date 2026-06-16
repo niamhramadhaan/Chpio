@@ -6,7 +6,7 @@ import {
   FileText,
   Search,
   Calendar,
-  Brain,
+  Database,
 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import type { Feature } from '../types';
@@ -24,7 +24,7 @@ const dockItems: DockItem[] = [
   { id: 3, feature: 'docs', icon: FileText, label: 'Docs' },
   { id: 4, feature: 'research', icon: Search, label: 'Research' },
   { id: 5, feature: 'calendar', icon: Calendar, label: 'Calendar' },
-  { id: 6, feature: 'memory', icon: Brain, label: 'Memory' },
+  { id: 6, feature: 'memory', icon: Database, label: 'Memory' },
 ];
 
 const dockSpring: Transition = {
@@ -44,11 +44,11 @@ export function BottomDock() {
   };
 
   return (
-    <div className="flex w-full items-center justify-center py-3">
+    <div className="flex w-full items-center justify-center py-2 sm:py-3">
       <motion.div
         layout
         transition={dockSpring}
-        className="relative flex items-end gap-2 rounded-2xl border border-white/10 bg-[#1A201F]/80 backdrop-blur-xl px-3 py-2 shadow-lg"
+        className="relative flex items-end gap-1.5 sm:gap-2 rounded-2xl border border-white/10 bg-[#1A201F]/80 backdrop-blur-xl px-2 sm:px-3 py-1.5 sm:py-2 shadow-lg overflow-x-auto scrollbar-none"
       >
         {dockItems.map((item) => {
           const isActive = activeFeature === item.feature;
@@ -82,7 +82,7 @@ export function BottomDock() {
                 title={item.label}
               >
                 <Icon
-                  className={`size-[18px] transition-all duration-200 ${
+                  className={`w-[18px] h-[18px] transition-all duration-200 ${
                     isActive ? 'text-teal-400' : 'text-white/40'
                   }`}
                 />

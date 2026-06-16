@@ -9,10 +9,14 @@
     "baseColor": "neutral",
     "cssVariables": false
   },
+  "iconLibrary": "radix",
   "aliases": {
     "components": "@/components",
     "utils": "@/lib/utils",
     "ui": "@/components/ui",
     "lib": "@/lib"
+  },
+  "registries": {
+    "@extend": "https://ui.extend.ai/r/{name}.json"
   }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, ChevronDown } from 'lucide-react';
-import { useAppStore } from './store/appStore';
+import { useAppStore, useIsMobile } from './store/appStore';
 import { useChatStore } from './store/chatStore';
 import { useSettingsStore } from './store/settingsStore';
 import { WALLPAPERS } from './types';
@@ -11,6 +11,7 @@ import { ProfileModal } from './components/ProfileModal';
 import { SettingsModal } from './components/SettingsModal';
 import { OnboardingFooter } from './components/OnboardingFooter';
 import { ChatPage } from './pages/ChatPage';
+import { BottomDock } from './components/BottomDock';
 import { getActiveModels } from './utils/models';
 import type { ChatSession } from './types';
 
@@ -119,13 +120,13 @@ function OnboardingView() {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.4 }}
-      className="relative z-10 w-full h-full flex flex-col items-center justify-center px-6"
+      className="relative z-10 w-full h-full flex flex-col items-center justify-center px-4 sm:px-6"
     >
       <motion.h1
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.1 }}
-        className="text-white text-3xl font-serif font-light mb-8 tracking-wide italic opacity-90"
+        className="text-white text-2xl sm:text-3xl font-serif font-light mb-6 sm:mb-8 tracking-wide italic opacity-90"
       >
         Welcome to <span className="text-teal-400 not-italic font-normal">ChPio</span>
       </motion.h1>
@@ -219,22 +220,35 @@ function OnboardingView() {
 }
 
 function WorkspaceView() {
+  const isMobile = useIsMobile();
+  const activeFeature = useAppStore((s) => s.activeFeature);
+  const showChat = activeFeature === 'chat';
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.4 }}
-      className="relative z-10 w-full h-full flex"
+      className="relative z-10 w-full h-full flex flex-col lg:flex-row"
     >
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      {/* Chat column — hidden on mobile when a feature panel is open */}
+      <div className={`flex-1 flex flex-col min-h-0 min-w-0 relative ${isMobile && !showChat ? 'hidden' : ''}`}>
         <ChatPage />
-        <div className="p-5 shrink-0">
+        <div className="shrink-0 p-3 sm:p-5">
           <CommandBar />
         </div>
       </div>
 
-      <RightPanel />
+      {/* Right panel — on mobile, only shown when a feature is active */}
+      {(!isMobile || !showChat) && <RightPanel />}
+
+      {/* Mobile bottom dock — always visible on mobile when in chat view */}
+      {isMobile && showChat && (
+        <div className="shrink-0 border-t border-white/5 bg-[#0f1413]/80 backdrop-blur-md safe-bottom">
+          <BottomDock />
+        </div>
+      )}
     </motion.div>
   );
 }
