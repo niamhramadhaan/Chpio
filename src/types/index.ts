@@ -136,12 +136,12 @@ export const WALLPAPERS: WallpaperOption[] = [
   { id: 'nature-2', label: 'Valley Mist', url: 'https://images.pexels.com/photos/34418177/pexels-photo-34418177.jpeg' },
   { id: 'nature-3', label: 'Green Valley', url: 'https://images.unsplash.com/photo-1624087267589-41ea77e28b1a?w=1920&q=80' },
   { id: 'nature-4', label: 'Forest Path', url: 'https://images.unsplash.com/photo-1565118531796-763e5082d113?w=1920&q=80' },
-  { id: 'vid-1', label: 'Cinematic Nature', url: 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260405_171521_25968ba2-b594-4b32-aab7-f6b69398a6fa.mp4', type: 'video' },
+  { id: 'vid-1', label: 'Cinematic Nature', url: 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260520_111942_8fc50f9e-4dfd-45c1-81bb-d93342a23d87.mp4', type: 'video' },
   { id: 'vid-2', label: 'Ambient Motion', url: 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260429_115139_0fc6bd3d-3631-4d26-ab9b-28293887dcc9.mp4', type: 'video' },
   { id: 'vid-3', label: 'Dynamic Scene', url: 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260324_151826_c7218672-6e92-402c-9e45-f1e0f454bdc4.mp4', type: 'video' },
   { id: 'vid-4', label: 'Peaceful Flow', url: 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260411_104032_69319010-2458-492b-b04d-b40a5dfa4482.mp4', type: 'video' },
-  { id: 'vid-5', label: 'Ambient Glow', url: 'https://cdn.promptspace.in/backgrounds/bg-001.mp4', type: 'video' },
-  { id: 'vid-6', label: 'Soft Motion', url: 'https://cdn.promptspace.in/backgrounds/bg-043.mp4', type: 'video' },
+  { id: 'vid-5', label: 'Ambient Glow', url: 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260525_052706_d2e390fd-1846-4fe7-a4d8-8d2f1c875358.mp4', type: 'video' },
+  { id: 'vid-6', label: 'Soft Motion', url: 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260314_131748_f2ca2a28-fed7-44c8-b9a9-bd9acdd5ec31.mp4', type: 'video' },
 ];
 
 export const DEFAULT_PROVIDERS: ProviderConfig[] = [
