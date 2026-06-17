@@ -461,57 +461,91 @@ function ProvidersTab() {
   );
 }
 
-function WallpaperTab() {
-  const { wallpaper, setWallpaper } = useSettingsStore();
-  const [customUrl, setCustomUrl] = useState('');
+function WallpaperOption({ wp, isSelected, onSelect }: { wp: typeof WALLPAPERS[0]; isSelected: boolean; onSelect: () => void }) {
+  const [isVisible, setIsVisible] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  const handleCustomApply = () => {
-    if (customUrl.trim()) {
-      setWallpaper(customUrl.trim());
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '100px' }
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
     }
-  };
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-2">
-        {WALLPAPERS.map((wp) => (
-          <button
-            key={wp.id}
-            onClick={() => setWallpaper(wp.url)}
-            className={`relative aspect-video rounded-xl overflow-hidden cursor-pointer border-2 transition-all group ${
-              wallpaper === wp.url
-                ? 'border-teal-400 ring-1 ring-teal-400/30'
-                : 'border-white/5 hover:border-white/20'
-            }`}
-          >
-            <img src={wp.url} alt={wp.label} className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-end">
-              <span className="text-xs text-white/80 px-2 py-1 font-medium">{wp.label}</span>
-            </div>
-            {wallpaper === wp.url && (
-              <div className="absolute top-1.5 right-1.5">
-                <Check className="w-4 h-4 text-teal-400 drop-shadow-lg" />
-              </div>
-            )}
-          </button>
-        ))}
+    <div ref={containerRef}>
+      <button
+        onClick={onSelect}
+        className={`relative aspect-video rounded-xl overflow-hidden cursor-pointer border-2 transition-all group ${
+          isSelected
+            ? 'border-teal-400 ring-1 ring-teal-400/30'
+            : 'border-white/5 hover:border-white/20'
+        }`}
+      >
+      {isVisible && (
+        <>
+          {wp.type === 'video' ? (
+            <video
+              src={wp.url}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+              muted
+              preload="metadata"
+              onLoadedData={(e) => {
+                e.currentTarget.currentTime = 0.1;
+                setIsLoaded(true);
+              }}
+            />
+          ) : (
+            <img
+              src={wp.url}
+              alt={wp.label}
+              className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+              onLoad={() => setIsLoaded(true)}
+            />
+          )}
+          {!isLoaded && (
+            <div className="absolute inset-0 bg-white/5 animate-pulse" />
+          )}
+        </>
+      )}
+      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-end">
+        <span className="text-xs text-white/80 px-2 py-1 font-medium">{wp.label}</span>
       </div>
-
-      <GlassCard className="p-4 space-y-2">
-        <h2 className="text-xs font-medium text-white/70 uppercase tracking-wider">Custom URL</h2>
-        <div className="flex gap-2">
-          <input
-            value={customUrl}
-            onChange={(e) => setCustomUrl(e.target.value)}
-            placeholder="https://images.unsplash.com/..."
-            className="flex-1 px-3 py-2 rounded-xl border outline-none text-sm font-medium
-                       bg-white/5 border-white/10 text-white/80 placeholder-white/20 focus:border-teal-400/50 transition-all"
-          />
-          <GlassButton onClick={handleCustomApply} variant="accent" size="sm">
-            Apply
-          </GlassButton>
+      {isSelected && (
+        <div className="absolute top-1.5 right-1.5">
+          <Check className="w-4 h-4 text-teal-400 drop-shadow-lg" />
         </div>
-      </GlassCard>
+      )}
+      </button>
+    </div>
+  );
+}
+
+function WallpaperTab() {
+  const { wallpaper, setWallpaper } = useSettingsStore();
+
+  return (
+    <div className="grid grid-cols-4 gap-2">
+      {WALLPAPERS.map((wp) => (
+        <WallpaperOption
+          key={wp.id}
+          wp={wp}
+          isSelected={wallpaper === wp.url}
+          onSelect={() => setWallpaper(wp.url)}
+        />
+      ))}
     </div>
   );
 }
