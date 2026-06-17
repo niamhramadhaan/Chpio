@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useNotesStore } from '../store/notesStore';
 import { PinItemBase } from '../components/ui/pin-item-base';
+import { ContextMenu } from '../components/ui/ContextMenu';
 import type { Note, NoteFolder } from '../types';
 
 function relativeTime(ts: number) {
@@ -54,6 +55,7 @@ function FolderCard({
   onArchive,
   onDelete,
   onToggleSelect,
+  onDropNote,
 }: {
   folder: { id: string; name: string; updatedAt: number };
   noteCount: number;
@@ -69,8 +71,31 @@ function FolderCard({
   onArchive: () => void;
   onDelete: () => void;
   onToggleSelect: () => void;
+  onDropNote?: (noteId: string) => void;
 }) {
   const [confirmAction, setConfirmAction] = useState<'archive' | 'delete' | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!onDropNote || isArchived) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!onDropNote || isArchived) return;
+    e.preventDefault();
+    setIsDragOver(false);
+    const noteId = e.dataTransfer.getData('application/note-id');
+    if (noteId) {
+      onDropNote(noteId);
+    }
+  };
 
   return (
     <motion.div
@@ -79,7 +104,10 @@ function FolderCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8 }}
       transition={{ duration: 0.2 }}
-      className="relative group h-48"
+      className={`relative group h-48 ${isDragOver ? 'ring-2 ring-teal-400/50' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       {/* Layer 1+2 — paper sheets (or empty state) */}
       {noteCount > 0 ? (
@@ -257,15 +285,32 @@ function NoteCard({
   const done = note.tasks.filter((t) => t.done).length;
   const total = note.tasks.length;
 
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData('application/note-id', note.id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -6 }}
-      transition={{ duration: 0.15 }}
-      className="group relative"
+    <ContextMenu
+      items={[
+        { label: 'Open', onClick: onOpen },
+        ...(!isArchived ? [{ icon: <Archive className="w-3.5 h-3.5" />, label: 'Archive', onClick: onArchive }] : []),
+        { icon: <Trash2 className="w-3.5 h-3.5" />, label: 'Delete', onClick: onDelete, variant: 'danger' as const },
+      ]}
     >
+      <motion.div
+        layout
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -6 }}
+        transition={{ duration: 0.15 }}
+        className="group relative"
+      >
+        <div
+          draggable={!selectMode && !isArchived}
+          onDragStart={handleDragStart}
+          className="contents"
+        >
       <div
         onClick={selectMode ? onToggleSelect : onOpen}
         className={`backdrop-blur-sm border rounded-xl p-3 transition-all duration-200 cursor-pointer h-full ${
@@ -353,7 +398,9 @@ function NoteCard({
           )}
         </div>
       )}
-    </motion.div>
+        </div>
+      </motion.div>
+    </ContextMenu>
   );
 }
 
@@ -1526,6 +1573,7 @@ export default function NotesPage() {
                         onArchive={() => archiveFolder(folder.id)}
                         onDelete={() => deleteFolder(folder.id)}
                         onToggleSelect={() => toggleSelectItem(folder.id)}
+                        onDropNote={showArchived ? undefined : (noteId) => moveNote(noteId, folder.id)}
                       />
                     );
                   })}

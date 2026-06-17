@@ -5,6 +5,7 @@ import { useAppStore, useIsMobile } from '../store/appStore';
 import { BottomDock } from './BottomDock';
 import { ChatHistoryPanel } from './panels/ChatHistoryPanel';
 import { SettingsPanel } from './panels/SettingsPanel';
+import { PageSkeleton, CardSkeleton } from './ui/skeleton';
 
 const NotesPage = React.lazy(() => import('../pages/NotesPage'));
 const DocsPage = React.lazy(() => import('../pages/DocsPage'));
@@ -14,10 +15,10 @@ const MemoryPage = React.lazy(() => import('../pages/MemoryPage'));
 
 const rightPages = ['chat', 'notes', 'docs', 'research', 'calendar', 'memory', 'settings'] as const;
 
-function PageFallback() {
+function PageFallback({ type = 'default' }: { type?: 'default' | 'cards' }) {
   return (
-    <div className="flex items-center justify-center h-full text-white/20 text-xs">
-      Loading...
+    <div className="h-full overflow-hidden">
+      {type === 'cards' ? <CardSkeleton /> : <PageSkeleton />}
     </div>
   );
 }
@@ -53,7 +54,7 @@ export function RightPanel() {
             )}
 
             <div className="flex-1 overflow-y-auto min-h-0">
-              <Suspense fallback={<PageFallback />}>
+              <Suspense fallback={<PageFallback type={activeFeature === 'notes' ? 'cards' : 'default'} />}>
                 {activeFeature === 'chat' && <ChatHistoryPanel />}
                 {activeFeature === 'notes' && <NotesPage />}
                 {activeFeature === 'docs' && <DocsPage />}

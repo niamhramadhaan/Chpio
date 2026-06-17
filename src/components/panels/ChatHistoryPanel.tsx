@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Search, MessageSquare, Archive, ArchiveRestore, Trash2, FolderKanban, Gamepad2, ArrowLeft, Lightbulb, FileText, Filter, Check, TextSearch, X } from 'lucide-react';
+import { Plus, Search, MessageSquare, Archive, ArchiveRestore, Trash2, FolderKanban, Gamepad2, ArrowLeft, Lightbulb, FileText, Filter, Check, TextSearch, X, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useChatStore } from '../../store/chatStore';
 import { useProjectStore } from '../../store/projectStore';
@@ -39,6 +39,10 @@ export function ChatHistoryPanel() {
     if (s.archived) return false;
     if (!s.projectId) return true;
     return selectedProjectIds.length === 0 || selectedProjectIds.includes(s.projectId);
+  }).sort((a, b) => {
+    if (a.starred && !b.starred) return -1;
+    if (!a.starred && b.starred) return 1;
+    return b.updatedAt - a.updatedAt;
   });
   const archivedSessions = sessions.filter((s) => s.archived);
   const projectSessions = sessions.filter((s) => s.projectId === activeProjectId && !s.archived);
@@ -471,7 +475,7 @@ function SessionItem({
   onConfirm,
   onCancelConfirm,
 }: {
-  session: { id: string; title: string; updatedAt: number };
+  session: { id: string; title: string; updatedAt: number; starred?: boolean };
   isActive: boolean;
   onSelect: () => void;
   isArchived?: boolean;
@@ -493,7 +497,11 @@ function SessionItem({
       }`}
       onClick={onSelect}
     >
-      <MessageSquare className="w-4 h-4 shrink-0" />
+      {session.starred ? (
+        <Star className="w-4 h-4 shrink-0 text-amber-400" fill="currentColor" />
+      ) : (
+        <MessageSquare className="w-4 h-4 shrink-0" />
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 min-w-0">
           <span className="truncate flex-1">{session.title}</span>

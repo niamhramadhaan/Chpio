@@ -12,6 +12,7 @@ import {
   MoreVertical,
   X,
 } from 'lucide-react';
+import { ContextMenu } from './ui/ContextMenu';
 
 export interface BrowserItem {
   id: string;
@@ -139,19 +140,25 @@ export function FileBrowser({
           <div className="grid grid-cols-2 gap-2">
             <AnimatePresence>
               {filtered.map((item) => (
-                <motion.div
+                <ContextMenu
                   key={item.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  onClick={() => onSelect(item.id)}
-                  className={`group relative p-3 rounded-xl cursor-pointer transition-all ${
-                    activeId === item.id
-                      ? 'bg-teal-400/10 border border-teal-400/30'
-                      : 'bg-[#1A201F]/60 border border-white/5 hover:border-teal-400/20 hover:bg-white/5'
-                  }`}
+                  items={[
+                    ...(onRename ? [{ icon: <Pencil className="w-3.5 h-3.5" />, label: 'Rename', onClick: () => handleRenameStart(item) }] : []),
+                    { icon: <Trash2 className="w-3.5 h-3.5" />, label: 'Delete', onClick: () => onDelete(item.id), variant: 'danger' as const },
+                  ]}
                 >
+                  <motion.div
+                    layout
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    onClick={() => onSelect(item.id)}
+                    className={`group relative p-3 rounded-xl cursor-pointer transition-all ${
+                      activeId === item.id
+                        ? 'bg-teal-400/10 border border-teal-400/30'
+                        : 'bg-[#1A201F]/60 border border-white/5 hover:border-teal-400/20 hover:bg-white/5'
+                    }`}
+                  >
                   <div className="flex items-start justify-between mb-2">
                     {item.type === 'folder' ? (
                       <Folder className="w-5 h-5 text-teal-400/60" />
@@ -202,7 +209,8 @@ export function FileBrowser({
                     <p className="text-[11px] text-white/70 truncate">{item.name}</p>
                   )}
                   <p className="text-[9px] text-white/20 mt-1">{relativeTime(item.updatedAt)}</p>
-                </motion.div>
+                  </motion.div>
+                </ContextMenu>
               ))}
             </AnimatePresence>
           </div>
@@ -210,19 +218,25 @@ export function FileBrowser({
           <div className="space-y-1">
             <AnimatePresence>
               {filtered.map((item) => (
-                <motion.div
+                <ContextMenu
                   key={item.id}
-                  layout
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={() => onSelect(item.id)}
-                  className={`group flex items-center gap-2.5 p-2 rounded-lg cursor-pointer transition-all ${
-                    activeId === item.id
-                      ? 'bg-teal-400/10 border border-teal-400/30'
-                      : 'hover:bg-white/5 border border-transparent'
-                  }`}
+                  items={[
+                    ...(onRename ? [{ icon: <Pencil className="w-3.5 h-3.5" />, label: 'Rename', onClick: () => handleRenameStart(item) }] : []),
+                    { icon: <Trash2 className="w-3.5 h-3.5" />, label: 'Delete', onClick: () => onDelete(item.id), variant: 'danger' as const },
+                  ]}
                 >
+                  <motion.div
+                    layout
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => onSelect(item.id)}
+                    className={`group flex items-center gap-2.5 p-2 rounded-lg cursor-pointer transition-all ${
+                      activeId === item.id
+                        ? 'bg-teal-400/10 border border-teal-400/30'
+                        : 'hover:bg-white/5 border border-transparent'
+                    }`}
+                  >
                   {item.type === 'folder' ? (
                     <Folder className="w-4 h-4 text-teal-400/60 shrink-0" />
                   ) : (
@@ -276,7 +290,8 @@ export function FileBrowser({
                       </div>
                     )}
                   </div>
-                </motion.div>
+                  </motion.div>
+                </ContextMenu>
               ))}
             </AnimatePresence>
           </div>

@@ -22,9 +22,11 @@ import {
   FileText,
   Bookmark,
   X,
+  Star,
 } from 'lucide-react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { useChatStore } from '../store/chatStore';
+import { ContextMenu } from '../components/ui/ContextMenu';
 import { useSettingsStore } from '../store/settingsStore';
 import { useAppStore, useIsMobile } from '../store/appStore';
 import { useProjectStore } from '../store/projectStore';
@@ -36,7 +38,7 @@ import { buildDocContextSystemMessage } from '../utils/docContext';
 import { parseDocUpdates, executeDocUpdates, stripDocUpdates, formatDocUpdateSummary } from '../utils/parseDocUpdates';
 import { buildMemoryContextSystemMessage, summarizeForMemory } from '../utils/memoryContext';
 import { exportChatAsMd, exportChatAsTxt, copyChatToClipboard, downloadFile, getExportFilename } from '../utils/exportChat';
-import chpioAvatar from '../assets/chpio-avatar.json';
+import { ChpioAvatar } from '../components/ChpioAvatar';
 
 const LazyCodeBlock = React.lazy(() => import('../components/CodeBlock'));
 
@@ -65,7 +67,6 @@ export function ChatPage() {
   const activeSessionId = useChatStore((s) => s.activeSessionId);
   const isStreaming = useChatStore((s) => s.isStreaming);
   const streamingContent = useChatStore((s) => s.streamingContent);
-  const streamingSessionId = useChatStore((s) => s.streamingSessionId);
   const session = sessions.find((s) => s.id === activeSessionId);
   const projects = useProjectStore((s) => s.projects);
   const setView = useAppStore((s) => s.setView);
@@ -79,6 +80,7 @@ export function ChatPage() {
   const updateSessionTitle = useChatStore((s) => s.updateSessionTitle);
   const setStreaming = useChatStore((s) => s.setStreaming);
   const editMessage = useChatStore((s) => s.editMessage);
+  const toggleStar = useChatStore((s) => s.toggleStar);
   const defaultModelId = useSettingsStore((s) => s.defaultModelId);
   const fallbackModelId = useSettingsStore((s) => s.fallbackModelId);
   const selectedModelId = useSettingsStore((s) => s.selectedModelId);
@@ -104,6 +106,11 @@ export function ChatPage() {
   const [rememberedMsgId, setRememberedMsgId] = useState<string | null>(null);
   const [nothingToRemember, setNothingToRemember] = useState<string | null>(null);
   const createMemory = useMemoryStore((s) => s.createMemory);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMatchIds, setSearchMatchIds] = useState<string[]>([]);
+  const [searchCurrentIdx, setSearchCurrentIdx] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const getModelName = useCallback((modelId: string) =>
     models.find((m) => m.id === modelId)?.name || modelId, [models]);
@@ -135,6 +142,46 @@ export function ChatPage() {
   }, [showExport]);
 
   useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+      if (e.key === 'Escape' && searchOpen) {
+        setSearchOpen(false);
+        setSearchQuery('');
+        setSearchMatchIds([]);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [searchOpen]);
+
+  useEffect(() => {
+    if (!session || !searchQuery.trim()) {
+      setSearchMatchIds([]);
+      setSearchCurrentIdx(0);
+      return;
+    }
+    const q = searchQuery.toLowerCase();
+    const matches = session.messages
+      .filter((m) => m.content.toLowerCase().includes(q))
+      .map((m) => m.id);
+    setSearchMatchIds(matches);
+    setSearchCurrentIdx(matches.length > 0 ? 0 : -1);
+  }, [searchQuery, session?.messages]);
+
+  useEffect(() => {
+    if (searchMatchIds.length === 0) return;
+    const msgId = searchMatchIds[searchCurrentIdx];
+    const el = document.querySelector(`[data-msg-id="${msgId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [searchCurrentIdx, searchMatchIds]);
+
+  useEffect(() => {
     if (!isStreaming) return;
     const rafId = requestAnimationFrame(() => {
       scrollRef.current?.scrollTo({
@@ -146,13 +193,13 @@ export function ChatPage() {
   }, [scrollContent, isStreaming]);
 
   useEffect(() => {
-    if (!isStreaming) {
+    requestAnimationFrame(() => {
       scrollRef.current?.scrollTo({
         top: scrollRef.current.scrollHeight,
         behavior: 'instant',
       });
-    }
-  }, [session?.messages?.length]);
+    });
+  }, [activeSessionId, session?.messages?.length]);
 
   const handleScroll = () => {
     setShowScrollBtn(!isNearBottom());
@@ -482,11 +529,33 @@ export function ChatPage() {
                 </button>
               )}
 
-              <div className="ml-auto relative" ref={exportRef}>
+              <div className="ml-auto flex items-center gap-1 relative" ref={exportRef}>
+                <button
+                  onClick={() => toggleStar(session.id)}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    session.starred ? 'text-amber-400 hover:text-amber-300' : 'text-white/30 hover:text-white/60 hover:bg-white/5'
+                  }`}
+                  title={session.starred ? 'Unstar chat' : 'Star chat'}
+                  aria-label={session.starred ? 'Unstar chat' : 'Star chat'}
+                >
+                  <Star className="w-3.5 h-3.5" fill={session.starred ? 'currentColor' : 'none'} />
+                </button>
+                <button
+                  onClick={() => {
+                    setSearchOpen(true);
+                    setTimeout(() => searchInputRef.current?.focus(), 50);
+                  }}
+                  className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
+                  title="Search messages (Ctrl+F)"
+                  aria-label="Search messages"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                </button>
                 <button
                   onClick={() => setShowExport(!showExport)}
                   className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
                   title="Export chat"
+                  aria-label="Export chat"
                 >
                   <Download className="w-3.5 h-3.5" />
                 </button>
@@ -542,6 +611,78 @@ export function ChatPage() {
           <span className="text-[11px] text-amber-400/70">This conversation is archived</span>
         </div>
       )}
+
+      <AnimatePresence>
+        {searchOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.15 }}
+            className="mx-3 sm:mx-6 mb-2 px-3 py-2 rounded-lg bg-[#1A201F]/80 backdrop-blur-md border border-white/10 flex items-center gap-2 shrink-0"
+          >
+            <Search className="w-3.5 h-3.5 text-white/30 shrink-0" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (searchMatchIds.length > 0) {
+                    setSearchCurrentIdx((prev) => (prev + 1) % searchMatchIds.length);
+                  }
+                }
+                if (e.key === 'Escape') {
+                  setSearchOpen(false);
+                  setSearchQuery('');
+                }
+              }}
+              placeholder="Search messages..."
+              className="bg-transparent text-white text-xs outline-none flex-1 placeholder-white/30"
+              autoFocus
+            />
+            {searchQuery && (
+              <span className="text-[10px] text-white/30 shrink-0">
+                {searchMatchIds.length > 0 ? `${searchCurrentIdx + 1}/${searchMatchIds.length}` : 'No matches'}
+              </span>
+            )}
+            <button
+              onClick={() => {
+                if (searchMatchIds.length > 0) {
+                  setSearchCurrentIdx((prev) => (prev + 1) % searchMatchIds.length);
+                }
+              }}
+              className="p-1 rounded text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+              aria-label="Next match"
+            >
+              <ChevronDown className="w-3 h-3 rotate-[-90deg]" />
+            </button>
+            <button
+              onClick={() => {
+                if (searchMatchIds.length > 0) {
+                  setSearchCurrentIdx((prev) => (prev - 1 + searchMatchIds.length) % searchMatchIds.length);
+                }
+              }}
+              className="p-1 rounded text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+              aria-label="Previous match"
+            >
+              <ChevronDown className="w-3 h-3 rotate-[90deg]" />
+            </button>
+            <button
+              onClick={() => {
+                setSearchOpen(false);
+                setSearchQuery('');
+              }}
+              className="p-1 rounded text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+              aria-label="Close search"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div
         ref={scrollRef}
@@ -604,12 +745,9 @@ export function ChatPage() {
 
           {session?.messages.map((msg, idx) => {
             const isLastAssistant = msg.role === 'assistant' && idx === session.messages.length - 1;
-            const isCurrentlyStreaming = isStreaming && isLastAssistant && streamingSessionId === session.id;
-            const displayContent = isCurrentlyStreaming ? streamingContent : msg.content;
+            const isCurrentlyStreaming = isStreaming && isLastAssistant;
+            const displayContent = isCurrentlyStreaming ? (streamingContent || msg.content) : msg.content;
             const displayThinking = isCurrentlyStreaming ? (useChatStore.getState().streamingThinking || msg.thinking) : msg.thinking;
-
-            // Skip empty assistant message that's waiting for streaming content
-            if (isLastAssistant && msg.content === '' && !streamingContent && isStreaming) return null;
 
             const isLastMessage = idx === session.messages.length - 1;
             const messageContent = msg.role === 'user' ? (
@@ -627,7 +765,6 @@ export function ChatPage() {
                 content={displayContent}
                 thinking={displayThinking}
                 isStreaming={isCurrentlyStreaming}
-                isLatest={isLastMessage}
                 modelId={msg.modelId || session?.modelId || ''}
                 timestamp={msg.timestamp}
                 getModelName={getModelName}
@@ -641,54 +778,26 @@ export function ChatPage() {
               />
             );
 
+            const isSearchMatch = searchOpen && searchQuery && searchMatchIds.includes(msg.id);
+            const isCurrentSearchMatch = searchOpen && searchQuery && searchMatchIds[searchCurrentIdx] === msg.id;
+
             if (isLastMessage) {
               return (
                 <motion.div
                   key={msg.id}
+                  data-msg-id={msg.id}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.25 }}
+                  className={isCurrentSearchMatch ? 'ring-1 ring-teal-400/40 rounded-2xl' : isSearchMatch ? 'ring-1 ring-teal-400/15 rounded-2xl' : ''}
                 >
                   {messageContent}
                 </motion.div>
               );
             }
 
-            return <div key={msg.id}>{messageContent}</div>;
+            return <div key={msg.id} data-msg-id={msg.id} className={isCurrentSearchMatch ? 'ring-1 ring-teal-400/40 rounded-2xl' : isSearchMatch ? 'ring-1 ring-teal-400/15 rounded-2xl' : ''}>{messageContent}</div>;
           })}
-
-          {isStreaming && session && streamingSessionId === session.id && streamingContent === '' && !useChatStore.getState().streamingThinking && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex justify-start"
-            >
-              <div className="max-w-[85%] flex gap-2.5">
-                <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 mt-1">
-                  <DotLottieReact
-                    data={chpioAvatar}
-                    loop
-                    autoplay
-                    style={{ width: '100%', height: '100%' }}
-                  />
-                </div>
-                <div>
-                  <div className="text-xs text-white/30 mb-1.5 font-medium flex items-center gap-2">
-                    ChPio
-                    <span className="flex items-center gap-1">
-                      <span className="w-1 h-1 rounded-full bg-teal-400/60 animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <span className="w-1 h-1 rounded-full bg-teal-400/60 animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <span className="w-1 h-1 rounded-full bg-teal-400/60 animate-bounce" style={{ animationDelay: '300ms' }} />
-                    </span>
-                    <span className="text-white/15 text-[10px]">typing</span>
-                  </div>
-                  <div className="text-sm rounded-2xl rounded-tl-md px-4 py-3 bg-slate-900/40 backdrop-blur-lg border border-white/10 min-w-[60px]">
-                    <span className="inline-block w-2 h-4 bg-teal-400/40 animate-pulse rounded-sm" />
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
         </div>
       </div>
 
@@ -764,45 +873,56 @@ const UserMessage = React.memo(function UserMessage({ content, timestamp, onEdit
   }
 
   return (
-    <div className="flex justify-end group">
-      <div className="max-w-[85%] min-w-0 overflow-hidden">
-        <div className="text-xs text-white/30 mb-1 text-right font-medium">You</div>
-        <div className="relative">
-          <div className="text-sm leading-relaxed rounded-2xl rounded-tr-md px-4 py-3 bg-slate-900/40 backdrop-blur-lg text-white/90 border border-teal-400/15 overflow-hidden">
-            <div className="break-words whitespace-pre-wrap" style={{ wordBreak: 'break-word' }}>{content}</div>
-          </div>
-          <div className="flex items-center gap-1 mt-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-900/50 backdrop-blur-md border border-white/5">
-              <span className="text-[10px] text-white/40 mr-1">
-                {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-              <button
-                onClick={() => { setEditing(true); setEditValue(content); }}
-                className="p-1 rounded-md text-white/40 hover:text-white/70 hover:bg-white/10 transition-all cursor-pointer"
-                title="Edit"
-              >
-                <Pen className="w-3 h-3" />
-              </button>
-              <button
-                onClick={handleCopy}
-                className="p-1 rounded-md text-white/40 hover:text-white/70 hover:bg-white/10 transition-all cursor-pointer"
-                title="Copy"
-              >
-                {copied ? <Check className="w-3 h-3 text-teal-400" /> : <Copy className="w-3 h-3" />}
-              </button>
-              <button
-                onClick={onRemember}
-                disabled={isRemembering}
-                className="p-1 rounded-md text-white/40 hover:text-teal-400 hover:bg-white/10 transition-all cursor-pointer disabled:opacity-40"
-                title="Save to memory"
-              >
-                {isRemembered ? <Check className="w-3 h-3 text-teal-400" /> : isNothingToRemember ? <X className="w-3 h-3 text-white/30" /> : isRemembering ? <span className="w-3 h-3 block rounded-full border-2 border-teal-400/40 border-t-teal-400 animate-spin" /> : <Bookmark className="w-3 h-3" />}
-              </button>
+    <ContextMenu
+      items={[
+        { icon: <Copy className="w-3.5 h-3.5" />, label: 'Copy', onClick: handleCopy },
+        { icon: <Pen className="w-3.5 h-3.5" />, label: 'Edit', onClick: () => { setEditing(true); setEditValue(content); } },
+        { icon: <Bookmark className="w-3.5 h-3.5" />, label: 'Save to memory', onClick: onRemember, disabled: isRemembering },
+      ]}
+    >
+      <div className="flex justify-end group">
+        <div className="max-w-[85%] min-w-0 overflow-hidden">
+          <div className="text-xs text-white/30 mb-1 text-right font-medium">You</div>
+          <div className="relative">
+            <div className="text-sm leading-relaxed rounded-2xl rounded-tr-md px-4 py-3 bg-slate-900/40 backdrop-blur-lg text-white/90 border border-teal-400/15 overflow-hidden">
+              <div className="break-words whitespace-pre-wrap" style={{ wordBreak: 'break-word' }}>{content}</div>
+            </div>
+            <div className="flex items-center gap-1 mt-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-900/50 backdrop-blur-md border border-white/5">
+                <span className="text-[10px] text-white/40 mr-1">
+                  {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <button
+                  onClick={() => { setEditing(true); setEditValue(content); }}
+                  className="p-1 rounded-md text-white/40 hover:text-white/70 hover:bg-white/10 transition-all cursor-pointer"
+                  title="Edit"
+                  aria-label="Edit message"
+                >
+                  <Pen className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={handleCopy}
+                  className="p-1 rounded-md text-white/40 hover:text-white/70 hover:bg-white/10 transition-all cursor-pointer"
+                  title="Copy"
+                  aria-label="Copy message"
+                >
+                  {copied ? <Check className="w-3 h-3 text-teal-400" /> : <Copy className="w-3 h-3" />}
+                </button>
+                <button
+                  onClick={onRemember}
+                  disabled={isRemembering}
+                  className="p-1 rounded-md text-white/40 hover:text-teal-400 hover:bg-white/10 transition-all cursor-pointer disabled:opacity-40"
+                  title="Save to memory"
+                  aria-label="Save to memory"
+                >
+                  {isRemembered ? <Check className="w-3 h-3 text-teal-400" /> : isNothingToRemember ? <X className="w-3 h-3 text-white/30" /> : isRemembering ? <span className="w-3 h-3 block rounded-full border-2 border-teal-400/40 border-t-teal-400 animate-spin" /> : <Bookmark className="w-3 h-3" />}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </ContextMenu>
   );
 });
 
@@ -851,7 +971,6 @@ const AssistantMessage = React.memo(function AssistantMessage({
   content,
   thinking,
   isStreaming,
-  isLatest,
   modelId,
   timestamp,
   getModelName,
@@ -866,7 +985,6 @@ const AssistantMessage = React.memo(function AssistantMessage({
   content: string;
   thinking?: string;
   isStreaming: boolean;
-  isLatest: boolean;
   modelId: string;
   timestamp: number;
   getModelName: (id: string) => string;
@@ -895,114 +1013,127 @@ const AssistantMessage = React.memo(function AssistantMessage({
     setEditing(false);
   };
 
+  const isEmptyAndStreaming = isStreaming && !content && !thinking;
+
   return (
-    <div className="flex justify-start group">
-      <div className="max-w-[85%] min-w-0 overflow-hidden flex gap-2.5">
-        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 mt-1 bg-teal-400/10 flex items-center justify-center">
-          {isLatest ? (
-            <DotLottieReact
-              data={chpioAvatar}
-              loop
-              autoplay
-              style={{ width: '100%', height: '100%' }}
-            />
-          ) : (
-            <svg viewBox="0 0 40 40" className="w-8 h-8 text-teal-400/60">
-              <rect width="40" height="40" rx="8" fill="currentColor" opacity="0.2" />
-              <text x="20" y="26" textAnchor="middle" fontSize="16" fontWeight="600" fill="currentColor">C</text>
-            </svg>
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-xs text-white/30 mb-1.5 font-medium">ChPio</div>
-          {thinking && (
-            <ThinkingBlock thinking={thinking} isStreaming={isStreaming && !content} />
-          )}
-          {editing ? (
-            <>
-              <textarea
-                autoFocus
-                value={editValue}
-                onChange={(e) => setEditValue(e.target.value)}
-                className="w-full text-sm leading-relaxed rounded-2xl rounded-tl-md px-4 py-3 bg-slate-900/40 backdrop-blur-lg text-white/85 border border-teal-400/30 outline-none resize-none"
-                style={{ height: 'auto', minHeight: '80px' }}
-                ref={(el) => {
-                  if (el && el.dataset.init !== '1') {
-                    el.dataset.init = '1';
-                    el.style.height = el.scrollHeight + 'px';
-                  }
-                }}
-                onInput={(e) => {
-                  const el = e.currentTarget;
-                  el.style.height = 'auto';
-                  el.style.height = el.scrollHeight + 'px';
-                }}
-                onKeyDown={(e) => { if (e.key === 'Escape') { setEditing(false); setEditValue(content); } }}
-              />
-              <div className="flex items-center gap-1.5 mt-1">
-                <button onClick={() => { setEditing(false); setEditValue(content); }} className="px-2 py-1 rounded-lg text-[10px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer">Cancel</button>
-                <button onClick={handleSave} className="px-2 py-1 rounded-lg text-[10px] bg-teal-400/20 text-teal-400 border border-teal-400/30 hover:bg-teal-400/30 transition-colors cursor-pointer">Save</button>
+    <ContextMenu
+      items={[
+        { icon: <Copy className="w-3.5 h-3.5" />, label: 'Copy', onClick: handleCopy },
+        ...(!isError && !(isStreaming && content) ? [{ icon: <Pen className="w-3.5 h-3.5" />, label: 'Edit', onClick: () => { setEditing(true); setEditValue(content); } }] : []),
+        { icon: <RefreshCw className="w-3.5 h-3.5" />, label: 'Regenerate', onClick: onRegenerate },
+        { icon: <Bookmark className="w-3.5 h-3.5" />, label: 'Save to memory', onClick: onRemember, disabled: isRemembering },
+      ]}
+    >
+      <div className="flex justify-start group">
+        <div className="max-w-[85%] min-w-0 overflow-hidden flex gap-2.5">
+          <ChpioAvatar
+            animated={isStreaming}
+            className="w-10 h-10 rounded-lg overflow-hidden shrink-0 mt-1 bg-teal-400/10 flex items-center justify-center"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-white/30 mb-1.5 font-medium">ChPio</div>
+            {thinking && (
+              <ThinkingBlock thinking={thinking} isStreaming={isStreaming && !content} />
+            )}
+            {isEmptyAndStreaming ? (
+              <div className="flex items-center gap-2">
+                <span className="flex items-center gap-1">
+                  <span className="w-1 h-1 rounded-full bg-teal-400/60 animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1 h-1 rounded-full bg-teal-400/60 animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1 h-1 rounded-full bg-teal-400/60 animate-bounce" style={{ animationDelay: '300ms' }} />
+                </span>
+                <span className="text-white/15 text-[10px]">typing</span>
               </div>
-            </>
-          ) : (
-            <div
-              className={`text-sm leading-relaxed rounded-2xl rounded-tl-md px-4 py-3 backdrop-blur-lg border overflow-hidden min-w-0 ${
-                isError
-                  ? 'bg-red-900/40 border-red-400/20 text-red-300/90'
-                  : 'bg-slate-900/40 border-white/10 text-white/85'
-              }`}
-              style={{ contain: 'content' }}
-            >
-              {content ? (
-                isStreaming ? <MessageContent content={content} /> : <LazyMessageContent content={content} />
-              ) : (
-                <span className="inline-block w-1.5 h-3.5 bg-white/30 rounded-sm animate-pulse" />
-              )}
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/50 backdrop-blur-md border border-white/5">
-              <span className="text-[10px] text-white/40">
-                {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-              <span className="text-[10px] text-white/20">·</span>
-              <span className="text-[10px] text-white/40">{getModelName(modelId)}</span>
-              {!isError && !(isStreaming && content) && (
+            ) : editing ? (
+              <>
+                <textarea
+                  autoFocus
+                  value={editValue}
+                  onChange={(e) => setEditValue(e.target.value)}
+                  className="w-full text-sm leading-relaxed rounded-2xl rounded-tl-md px-4 py-3 bg-slate-900/40 backdrop-blur-lg text-white/85 border border-teal-400/30 outline-none resize-none"
+                  style={{ height: 'auto', minHeight: '80px' }}
+                  ref={(el) => {
+                    if (el && el.dataset.init !== '1') {
+                      el.dataset.init = '1';
+                      el.style.height = el.scrollHeight + 'px';
+                    }
+                  }}
+                  onInput={(e) => {
+                    const el = e.currentTarget;
+                    el.style.height = 'auto';
+                    el.style.height = el.scrollHeight + 'px';
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Escape') { setEditing(false); setEditValue(content); } }}
+                />
+                <div className="flex items-center gap-1.5 mt-1">
+                  <button onClick={() => { setEditing(false); setEditValue(content); }} className="px-2 py-1 rounded-lg text-[10px] text-white/40 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer">Cancel</button>
+                  <button onClick={handleSave} className="px-2 py-1 rounded-lg text-[10px] bg-teal-400/20 text-teal-400 border border-teal-400/30 hover:bg-teal-400/30 transition-colors cursor-pointer">Save</button>
+                </div>
+              </>
+            ) : (
+              <div
+                className={`text-sm leading-relaxed rounded-2xl rounded-tl-md px-4 py-3 backdrop-blur-lg border overflow-hidden min-w-0 ${
+                  isError
+                    ? 'bg-red-900/40 border-red-400/20 text-red-300/90'
+                    : 'bg-slate-900/40 border-white/10 text-white/85'
+                }`}
+                style={{ contain: 'content' }}
+              >
+                {content ? (
+                  isStreaming ? <MessageContent content={content} /> : <LazyMessageContent content={content} />
+                ) : (
+                  <span className="inline-block w-1.5 h-3.5 bg-white/30 rounded-sm animate-pulse" />
+                )}
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/50 backdrop-blur-md border border-white/5">
+                <span className="text-[10px] text-white/40">
+                  {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <span className="text-[10px] text-white/20">·</span>
+                <span className="text-[10px] text-white/40">{getModelName(modelId)}</span>
+                {!isError && !(isStreaming && content) && (
+                  <button
+                    onClick={() => { setEditing(true); setEditValue(content); }}
+                    className="p-1 rounded-md text-white/40 hover:text-white/70 hover:bg-white/10 transition-all cursor-pointer ml-1"
+                    title="Edit"
+                    aria-label="Edit message"
+                  >
+                    <Pen className="w-3 h-3" />
+                  </button>
+                )}
                 <button
-                  onClick={() => { setEditing(true); setEditValue(content); }}
-                  className="p-1 rounded-md text-white/40 hover:text-white/70 hover:bg-white/10 transition-all cursor-pointer ml-1"
-                  title="Edit"
+                  onClick={handleCopy}
+                  className="p-1 rounded-md text-white/40 hover:text-white/70 hover:bg-white/10 transition-all cursor-pointer"
+                  title="Copy"
+                  aria-label="Copy message"
                 >
-                  <Pen className="w-3 h-3" />
+                  {copied ? <Check className="w-3 h-3 text-teal-400" /> : <Copy className="w-3 h-3" />}
                 </button>
-              )}
-              <button
-                onClick={handleCopy}
-                className="p-1 rounded-md text-white/40 hover:text-white/70 hover:bg-white/10 transition-all cursor-pointer"
-                title="Copy"
-              >
-                {copied ? <Check className="w-3 h-3 text-teal-400" /> : <Copy className="w-3 h-3" />}
-              </button>
-              <button
-                onClick={onRegenerate}
-                className="p-1 rounded-md text-white/40 hover:text-teal-400 hover:bg-white/10 transition-all cursor-pointer"
-                title="Regenerate"
-              >
-                <RefreshCw className="w-3 h-3" />
-              </button>
-              <button
-                onClick={onRemember}
-                disabled={isRemembering}
-                className="p-1 rounded-md text-white/40 hover:text-teal-400 hover:bg-white/10 transition-all cursor-pointer disabled:opacity-40"
-                title="Save to memory"
-              >
-                {isRemembered ? <Check className="w-3 h-3 text-teal-400" /> : isNothingToRemember ? <X className="w-3 h-3 text-white/30" /> : isRemembering ? <span className="w-3 h-3 block rounded-full border-2 border-teal-400/40 border-t-teal-400 animate-spin" /> : <Bookmark className="w-3 h-3" />}
-              </button>
+                <button
+                  onClick={onRegenerate}
+                  className="p-1 rounded-md text-white/40 hover:text-teal-400 hover:bg-white/10 transition-all cursor-pointer"
+                  title="Regenerate"
+                  aria-label="Regenerate response"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={onRemember}
+                  disabled={isRemembering}
+                  className="p-1 rounded-md text-white/40 hover:text-teal-400 hover:bg-white/10 transition-all cursor-pointer disabled:opacity-40"
+                  title="Save to memory"
+                  aria-label="Save to memory"
+                >
+                  {isRemembered ? <Check className="w-3 h-3 text-teal-400" /> : isNothingToRemember ? <X className="w-3 h-3 text-white/30" /> : isRemembering ? <span className="w-3 h-3 block rounded-full border-2 border-teal-400/40 border-t-teal-400 animate-spin" /> : <Bookmark className="w-3 h-3" />}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </ContextMenu>
   );
 });
 

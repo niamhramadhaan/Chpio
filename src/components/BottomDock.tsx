@@ -80,6 +80,9 @@ export function BottomDock() {
                     : 'bg-white/5 hover:bg-white/10'
                 }`}
                 title={item.label}
+                aria-label={item.label}
+                role="button"
+                tabIndex={0}
               >
                 <Icon
                   className={`w-[18px] h-[18px] transition-all duration-200 ${

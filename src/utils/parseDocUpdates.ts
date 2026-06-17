@@ -11,7 +11,7 @@ export interface ParsedDocUpdate {
   success: boolean;
 }
 
-const DOC_UPDATE_REGEX = /```doc-update\nid:\s*([^\n]+)\n---\n([\s\S]*?)```/g;
+const DOC_UPDATE_REGEX = /```doc-update\nid:\s*([^\n]+)\n---\n([\s\S]*?)```END-DOC-UPDATE/g;
 
 export function parseDocUpdates(text: string): DocUpdate[] {
   const updates: DocUpdate[] = [];
@@ -46,7 +46,7 @@ export function executeDocUpdates(updates: DocUpdate[]): ParsedDocUpdate[] {
 }
 
 export function stripDocUpdates(text: string): string {
-  return text.replace(/```doc-update\nid:\s*[^\n]+\n---\n[\s\S]*?```/g, '').trim();
+  return text.replace(/```doc-update\nid:\s*[^\n]+\n---\n[\s\S]*?```END-DOC-UPDATE/g, '').trim();
 }
 
 export function formatDocUpdateSummary(results: ParsedDocUpdate[]): string {

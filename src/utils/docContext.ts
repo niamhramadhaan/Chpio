@@ -22,7 +22,7 @@ To edit a document, output a block in this exact format on its own lines:
 id: ${docs[0].id}
 ---
 [the ENTIRE new content of the document, replacing all existing content]
-\`\`\`
+\`\`\`END-DOC-UPDATE
 
 Rules:
 - Only include doc-update blocks when you need to modify a document.
@@ -30,7 +30,8 @@ Rules:
 - You can include multiple doc-update blocks for multiple documents.
 - The id must match one of the document IDs provided above.
 - Put your regular response text BEFORE the doc-update blocks.
-- After the doc-update blocks, you can add a brief summary of what you changed.`;
+- After the doc-update blocks, you can add a brief summary of what you changed.
+- IMPORTANT: The closing delimiter must be exactly \`\`\`END-DOC-UPDATE (three backticks followed by END-DOC-UPDATE).`;
 }
 
 function escapeXml(str: string): string {

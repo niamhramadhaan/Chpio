@@ -18,15 +18,18 @@ import {
   Clipboard,
   Check,
   FileText,
+  Maximize2,
 } from 'lucide-react';
 import { useDocsStore } from '../store/docsStore';
 import { FileBrowser, type BrowserItem } from '../components/FileBrowser';
+import { DocEditorModal } from '../components/DocEditorModal';
 
 export default function DocsPage() {
   const { docs, activeDocId, createDoc, updateDoc, deleteDoc, setActiveDoc, getActiveDoc } = useDocsStore();
   const [showList, setShowList] = useState(true);
   const [previewMode, setPreviewMode] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -120,6 +123,7 @@ export default function DocsPage() {
       onClick={onClick}
       className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
       title={label}
+      aria-label={label}
     >
       {icon}
     </button>
@@ -174,11 +178,20 @@ export default function DocsPage() {
               {/* Action buttons */}
               <div className="flex items-center gap-0.5 shrink-0">
                 <button
+                  onClick={() => setExpandedDocId(activeDocId)}
+                  className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
+                  title="Expand editor"
+                  aria-label="Expand editor"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                </button>
+                <button
                   onClick={() => setPreviewMode(!previewMode)}
                   className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                     previewMode ? 'bg-teal-400/15 text-teal-400' : 'text-white/30 hover:text-white/60 hover:bg-white/5'
                   }`}
                   title={previewMode ? 'Edit' : 'Preview'}
+                  aria-label={previewMode ? 'Edit' : 'Preview'}
                 >
                   {previewMode ? <Edit3 className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                 </button>
@@ -186,6 +199,7 @@ export default function DocsPage() {
                   onClick={handleCopy}
                   className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
                   title="Copy"
+                  aria-label="Copy content"
                 >
                   {copied ? <Check className="w-3.5 h-3.5 text-teal-400" /> : <Clipboard className="w-3.5 h-3.5" />}
                 </button>
@@ -193,6 +207,7 @@ export default function DocsPage() {
                   onClick={handleExportMd}
                   className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
                   title="Export .md"
+                  aria-label="Export as markdown"
                 >
                   <Download className="w-3.5 h-3.5" />
                 </button>
@@ -241,6 +256,15 @@ export default function DocsPage() {
           </div>
         ) : null}
       </AnimatePresence>
+
+      {/* Full-screen editor modal */}
+      {expandedDocId && (
+        <DocEditorModal
+          docId={expandedDocId}
+          isOpen={!!expandedDocId}
+          onClose={() => setExpandedDocId(null)}
+        />
+      )}
     </div>
   );
 }

@@ -50,6 +50,7 @@ export interface ChatSession {
   attachedDocIds?: string[];
   archived: boolean;
   archivedAt?: number;
+  starred?: boolean;
   createdAt: number;
   updatedAt: number;
 }

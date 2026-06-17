@@ -318,6 +318,8 @@ export function CommandBar() {
           : 'text-white/40 hover:text-white/60 hover:bg-white/5 border border-transparent'
       }`}
       title={label}
+      aria-label={label}
+      aria-pressed={toggles[key]}
     >
       {(() => { const I = icon; return <I className="w-3.5 h-3.5" />; })()}
       {isHero && <span>{label}</span>}
@@ -479,6 +481,7 @@ export function CommandBar() {
             onClick={handleFilePicker}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs text-white/40 hover:text-white/60 hover:bg-white/5 transition-all cursor-pointer border border-transparent"
             title="Attach file"
+            aria-label="Attach file"
           >
             <Paperclip className="w-3.5 h-3.5" />
             {isHero && <span>Attach</span>}
@@ -552,6 +555,7 @@ export function CommandBar() {
           <button
             onClick={stopStreaming}
             className="w-8 h-8 flex items-center justify-center rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all cursor-pointer"
+            aria-label="Stop streaming"
           >
             <Square className="w-3.5 h-3.5" fill="currentColor" />
           </button>
@@ -564,6 +568,7 @@ export function CommandBar() {
                 ? 'bg-teal-400 text-black hover:bg-teal-300'
                 : 'bg-white/10 text-white/30'
             } disabled:cursor-not-allowed`}
+            aria-label="Send message"
           >
             <ArrowUp className="w-4 h-4" />
           </button>

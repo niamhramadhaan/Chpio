@@ -18,6 +18,7 @@ function loadSessions(): ChatSession[] {
       archivedAt: s.archivedAt ?? undefined,
       projectId: s.projectId ?? undefined,
       attachedDocIds: s.attachedDocIds ?? [],
+      starred: s.starred ?? false,
     }));
   } catch {
     return [];
@@ -49,6 +50,7 @@ interface ChatState {
   moveSessionToProject: (sessionId: string, projectId: string | undefined) => void;
   setAttachedDocs: (sessionId: string, docIds: string[]) => void;
   editMessage: (sessionId: string, messageId: string, content: string) => void;
+  toggleStar: (id: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -126,7 +128,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       }
       set({ streamingContent: '', streamingThinking: '', streamingSessionId: null, isStreaming: false, abortController: null });
     } else {
-      set({ isStreaming: true, abortController: get().abortController });
+      set({ isStreaming: true, streamingContent: '', streamingThinking: '', streamingSessionId: null, abortController: get().abortController });
     }
   },
 
@@ -228,6 +230,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       );
       return { ...s, messages, updatedAt: Date.now() };
     });
+    saveSessions(sessions);
+    set({ sessions });
+  },
+
+  toggleStar: (id) => {
+    const sessions = get().sessions.map((s) =>
+      s.id === id ? { ...s, starred: !s.starred } : s
+    );
     saveSessions(sessions);
     set({ sessions });
   },
