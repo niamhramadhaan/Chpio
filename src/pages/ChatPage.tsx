@@ -243,8 +243,9 @@ export function ChatPage() {
       const allDocs = useDocsStore.getState().docs;
       const sessionDocs = allDocs.filter((d) => session?.attachedDocIds?.includes(d.id));
       const docSystemMsg = buildDocContextSystemMessage(sessionDocs);
-      const allMemories = useMemoryStore.getState().memories;
-      const memorySystemMsg = buildMemoryContextSystemMessage(allMemories);
+      const { memories, activeTag } = useMemoryStore.getState();
+      const filteredMemories = activeTag ? memories.filter(m => m.tags.includes(activeTag)) : memories;
+      const memorySystemMsg = buildMemoryContextSystemMessage(filteredMemories);
 
       const combinedSystem = [memorySystemMsg, docSystemMsg].filter(Boolean).join('\n\n');
       const messages = combinedSystem
@@ -344,8 +345,9 @@ export function ChatPage() {
       const allDocs = useDocsStore.getState().docs;
       const sessionDocs = allDocs.filter((d) => session.attachedDocIds?.includes(d.id));
       const docSystemMsg = buildDocContextSystemMessage(sessionDocs);
-      const allMemories = useMemoryStore.getState().memories;
-      const memorySystemMsg = buildMemoryContextSystemMessage(allMemories);
+      const { memories: mem, activeTag: tag } = useMemoryStore.getState();
+      const filteredMem = tag ? mem.filter(m => m.tags.includes(tag)) : mem;
+      const memorySystemMsg = buildMemoryContextSystemMessage(filteredMem);
 
       const combinedSystem = [memorySystemMsg, docSystemMsg].filter(Boolean).join('\n\n');
       const messages = combinedSystem

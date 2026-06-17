@@ -78,6 +78,7 @@ export function CommandBar() {
 
   const docs = useDocsStore((s) => s.docs);
   const memories = useMemoryStore((s) => s.memories);
+  const activeTag = useMemoryStore((s) => s.activeTag);
   const activeSession = useChatStore((s) => s.sessions.find((sess) => sess.id === s.activeSessionId));
   const attachedDocIds = activeSession?.attachedDocIds ?? [];
   const setAttachedDocs = useChatStore((s) => s.setAttachedDocs);
@@ -154,7 +155,7 @@ export function CommandBar() {
       const session = useChatStore.getState().sessions.find((s) => s.id === sessionId);
       const sessionDocs = docs.filter((d) => session?.attachedDocIds?.includes(d.id));
       const docSystemMsg = buildDocContextSystemMessage(sessionDocs);
-      const memorySystemMsg = toggles.memory ? buildMemoryContextSystemMessage(memories) : null;
+      const memorySystemMsg = toggles.memory ? buildMemoryContextSystemMessage(activeTag ? memories.filter(m => m.tags.includes(activeTag)) : memories) : null;
 
       const chatMessages = useChatStore
         .getState()

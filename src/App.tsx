@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, ChevronDown } from 'lucide-react';
 import { useAppStore, useIsMobile } from './store/appStore';
@@ -71,24 +71,7 @@ function OnboardingView() {
   const models = useMemo(() => getActiveModels(providers), [providers]);
   const recent = useMemo(() => [...sessions].filter((s) => !s.archived).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10), [sessions]);
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [hovering, setHovering] = useState(false);
   const [listOpen, setListOpen] = useState(true);
-
-  useEffect(() => {
-    if (!scrollRef.current || hovering) return;
-    const el = scrollRef.current;
-    let frame: number;
-    const step = () => {
-      el.scrollLeft += 0.3;
-      if (el.scrollLeft >= el.scrollWidth - el.clientWidth) {
-        el.scrollLeft = 0;
-      }
-      frame = requestAnimationFrame(step);
-    };
-    frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
-  }, [hovering, recent]);
 
   const handleCardClick = (session: ChatSession) => {
     setActiveSession(session.id);
@@ -113,6 +96,8 @@ function OnboardingView() {
     const days = Math.floor(hrs / 24);
     return `${days}d`;
   };
+
+  const shouldAnimate = listOpen && recent.length > 2;
 
   return (
     <motion.div
@@ -174,40 +159,47 @@ function OnboardingView() {
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div
-                  ref={scrollRef}
-                  onMouseEnter={() => setHovering(true)}
-                  onMouseLeave={() => setHovering(false)}
-                  onWheel={(e) => {
-                    if (scrollRef.current && e.deltaY !== 0) {
-                      e.preventDefault();
-                      scrollRef.current.scrollLeft += e.deltaY;
-                    }
-                  }}
-                  className="flex gap-3 overflow-x-auto pb-2 scrollbar-none"
-                >
-            {recent.map((session, i) => (
-              <motion.button
-                key={session.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: 0.75 + i * 0.05 }}
-                onClick={() => handleCardClick(session)}
-                className="shrink-0 px-4 py-3 rounded-xl bg-[#1A201F]/60 backdrop-blur-sm border border-white/5
-                           hover:border-teal-400/20 hover:bg-white/5 transition-all duration-200 cursor-pointer text-left group"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <MessageSquare className="w-3.5 h-3.5 text-white/20 group-hover:text-teal-400/50 transition-colors" />
-                  <span className="text-white/80 text-sm font-medium truncate max-w-[160px]">
-                    {session.title}
-                  </span>
+                <div className="relative overflow-hidden pb-2">
+                  <motion.div
+                    className="flex gap-3"
+                    animate={shouldAnimate ? {
+                      x: ['0%', '-50%'],
+                    } : {
+                      x: 0,
+                    }}
+                    transition={shouldAnimate ? {
+                      x: {
+                        duration: recent.length * 4,
+                        ease: 'linear',
+                        repeat: Infinity,
+                      },
+                    } : {
+                      duration: 0.5,
+                    }}
+                  >
+                    {[...recent, ...recent].map((session, i) => (
+                      <motion.button
+                        key={`${session.id}-${i}`}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: Math.min(i * 0.05, 0.5) }}
+                        onClick={() => handleCardClick(session)}
+                        className="shrink-0 px-4 py-3 rounded-xl bg-[#1A201F]/60 backdrop-blur-sm border border-white/5
+                                   hover:border-teal-400/20 hover:bg-white/5 transition-all duration-200 cursor-pointer text-left group"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <MessageSquare className="w-3.5 h-3.5 text-white/20 group-hover:text-teal-400/50 transition-colors" />
+                          <span className="text-white/80 text-sm font-medium truncate max-w-[160px]">
+                            {session.title}
+                          </span>
+                        </div>
+                        <div className="text-white/25 text-xs">
+                          {getModelName(session.modelId)} · {relativeTime(session.updatedAt)}
+                        </div>
+                      </motion.button>
+                    ))}
+                  </motion.div>
                 </div>
-                <div className="text-white/25 text-xs">
-                  {getModelName(session.modelId)} · {relativeTime(session.updatedAt)}
-                </div>
-              </motion.button>
-            ))}
-          </div>
               </motion.div>
             )}
           </AnimatePresence>

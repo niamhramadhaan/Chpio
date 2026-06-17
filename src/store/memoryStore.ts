@@ -23,14 +23,18 @@ function saveMemories(memories: Memory[]) {
 
 interface MemoryState {
   memories: Memory[];
+  activeTag: string | null;
   createMemory: (content: string, tags: string[]) => string;
   updateMemory: (id: string, updates: Partial<Pick<Memory, 'content' | 'tags'>>) => void;
   deleteMemory: (id: string) => void;
   searchMemories: (query: string) => Memory[];
+  setActiveTag: (tag: string | null) => void;
+  getFilteredMemories: () => Memory[];
 }
 
 export const useMemoryStore = create<MemoryState>((set, get) => ({
   memories: loadMemories(),
+  activeTag: null,
 
   createMemory: (content, tags) => {
     const id = crypto.randomUUID();
@@ -69,5 +73,13 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
         m.content.toLowerCase().includes(q) ||
         m.tags.some((t) => t.toLowerCase().includes(q))
     );
+  },
+
+  setActiveTag: (tag) => set({ activeTag: tag }),
+
+  getFilteredMemories: () => {
+    const { memories, activeTag } = get();
+    if (!activeTag) return memories;
+    return memories.filter((m) => m.tags.includes(activeTag));
   },
 }));
