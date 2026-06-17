@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   RefreshCw, Eye, EyeOff, ChevronDown, ChevronUp, Zap, Power, PowerOff,
   Check, Settings as SettingsIcon, Palette, Server, CheckCircle2, XCircle, Star,
+  Search, RotateCcw, X,
 } from 'lucide-react';
 import { useSettingsStore } from '../store/settingsStore';
 import { useAppStore } from '../store/appStore';
@@ -175,26 +176,30 @@ function ModelDropdown({
 }
 
 function ProvidersTab() {
-  const { providers, setProviderKey, setProviderEnabled, setProviderModels, setProviderSynced, mainProviderId, setMainProvider } = useSettingsStore();
+  const { providers, setProviderKey, setProviderEnabled, setProviderModels, setProviderSynced, setProviderBaseUrl, resetProviderBaseUrl, toggleFavoriteModel, mainProviderId, setMainProvider } = useSettingsStore();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [draftKeys, setDraftKeys] = useState<Record<string, string>>({});
+  const [draftUrls, setDraftUrls] = useState<Record<string, string>>({});
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const [testing, setTesting] = useState<Record<string, boolean>>({});
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
   const [syncErrors, setSyncErrors] = useState<Record<string, string>>({});
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
+  const [modelSearch, setModelSearch] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const keys: Record<string, string> = {};
-    providers.forEach((p) => { keys[p.id] = p.apiKey; });
+    const urls: Record<string, string> = {};
+    providers.forEach((p) => { keys[p.id] = p.apiKey; urls[p.id] = p.baseUrl; });
     setDraftKeys(keys);
+    setDraftUrls(urls);
   }, [providers]);
 
   const handleTest = async (provider: ProviderConfig) => {
     setTesting((s) => ({ ...s, [provider.id]: true }));
     setTestResults((s) => ({ ...s, [provider.id]: { ok: false, msg: '' } }));
-    const result = await testConnection(provider.baseUrl, provider.apiKey || undefined, provider.id);
+    const result = await testConnection(draftUrls[provider.id] || provider.baseUrl, provider.apiKey || undefined, provider.id);
     setTestResults((s) => ({
       ...s,
       [provider.id]: { ok: result.ok, msg: result.ok ? 'Connected!' : result.error || 'Failed' },
@@ -210,7 +215,7 @@ function ProvidersTab() {
     setSyncing((s) => ({ ...s, [provider.id]: true }));
     setSyncErrors((s) => ({ ...s, [provider.id]: '' }));
     try {
-      const models = await fetchProviderModels(provider.baseUrl, provider.apiKey || undefined, provider.id);
+      const models = await fetchProviderModels(draftUrls[provider.id] || provider.baseUrl, provider.apiKey || undefined, provider.id);
       setProviderModels(provider.id, models);
       setProviderSynced(provider.id, Date.now());
     } catch (e) {
@@ -231,8 +236,35 @@ function ProvidersTab() {
     setProviderKey(confirmKey, draftKeys[confirmKey] || '');
   };
 
-  const handleToggle = (provider: ProviderConfig) => {
-    setProviderEnabled(provider.id, !provider.enabled);
+  const handleToggle = async (provider: ProviderConfig) => {
+    const newEnabled = !provider.enabled;
+    setProviderEnabled(provider.id, newEnabled);
+
+    // Auto-sync when enabling a provider with valid credentials
+    if (newEnabled && (provider.id === 'ollama' || provider.id === 'llamacpp' || provider.apiKey)) {
+      setSyncing((s) => ({ ...s, [provider.id]: true }));
+      try {
+        const models = await fetchProviderModels(draftUrls[provider.id] || provider.baseUrl, provider.apiKey || undefined, provider.id);
+        setProviderModels(provider.id, models);
+        setProviderSynced(provider.id, Date.now());
+      } catch (e) {
+        console.error(`Auto-sync failed for ${provider.name}:`, e);
+      } finally {
+        setSyncing((s) => ({ ...s, [provider.id]: false }));
+      }
+    }
+  };
+
+  const handleUrlSave = (provider: ProviderConfig) => {
+    const url = draftUrls[provider.id];
+    if (url && url !== provider.baseUrl) {
+      setProviderBaseUrl(provider.id, url);
+    }
+  };
+
+  const handleUrlReset = (provider: ProviderConfig) => {
+    resetProviderBaseUrl(provider.id);
+    setDraftUrls((s) => ({ ...s, [provider.id]: provider.defaultBaseUrl }));
   };
 
   const sortedProviders = useMemo(() => {
@@ -249,6 +281,18 @@ function ProvidersTab() {
         const isExpanded = expanded === provider.id;
         const logo = PROVIDER_LOGOS[provider.id];
         const isMain = provider.id === mainProviderId;
+        const search = modelSearch[provider.id] || '';
+        const favoriteModels = provider.favoriteModels || [];
+        const filteredModels = provider.syncedModels.filter((m) =>
+          m.name.toLowerCase().includes(search.toLowerCase())
+        );
+        const sortedModels = [...filteredModels].sort((a, b) => {
+          const aFav = favoriteModels.includes(a.id);
+          const bFav = favoriteModels.includes(b.id);
+          if (aFav && !bFav) return -1;
+          if (!aFav && bFav) return 1;
+          return 0;
+        });
 
         return (
           <GlassCard key={provider.id} className={`overflow-hidden ${isMain ? 'ring-1 ring-teal-400/20' : ''}`}>
@@ -343,14 +387,37 @@ function ProvidersTab() {
                       </div>
                     )}
 
+                    {/* Editable Base URL */}
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-white/40">Base URL</label>
-                      <input
-                        value={provider.baseUrl}
-                        readOnly
-                        className="w-full px-3 py-2 rounded-xl border outline-none text-sm font-mono
-                                   bg-white/5 border-white/10 text-white/50"
-                      />
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-medium text-white/40">Base URL</label>
+                        {draftUrls[provider.id] !== provider.defaultBaseUrl && (
+                          <button
+                            onClick={() => handleUrlReset(provider)}
+                            className="flex items-center gap-1 text-[10px] text-white/30 hover:text-white/50 transition-colors cursor-pointer"
+                          >
+                            <RotateCcw className="w-2.5 h-2.5" />
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <input
+                          value={draftUrls[provider.id] || ''}
+                          onChange={(e) => setDraftUrls((s) => ({ ...s, [provider.id]: e.target.value }))}
+                          onBlur={() => handleUrlSave(provider)}
+                          className="w-full px-3 py-2 rounded-xl border outline-none text-sm font-mono
+                                     bg-white/5 border-white/10 text-white focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20 transition-all"
+                        />
+                        {draftUrls[provider.id] !== provider.baseUrl && (
+                          <button
+                            onClick={() => handleUrlSave(provider)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded-md bg-teal-400/15 text-teal-400 text-xs font-medium cursor-pointer hover:bg-teal-400/25 transition-colors"
+                          >
+                            Save
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex gap-2">
@@ -420,18 +487,62 @@ function ProvidersTab() {
 
                     {provider.syncedModels.length > 0 && (
                       <div className="space-y-1.5">
-                        <h3 className="text-xs font-medium text-white/50">
-                          Synced Models ({provider.syncedModels.length})
-                        </h3>
-                        <div className="max-h-40 overflow-y-auto space-y-1 rounded-xl bg-white/5 p-2">
-                          {provider.syncedModels.map((m) => (
-                            <div key={m.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg text-xs">
-                              <span className="text-white/70 font-medium truncate">{m.name}</span>
-                              {m.contextLength > 0 && (
-                                <span className="text-white/20 shrink-0 ml-2">{m.contextLength.toLocaleString()} ctx</span>
-                              )}
-                            </div>
-                          ))}
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-xs font-medium text-white/50">
+                            Synced Models ({provider.syncedModels.length})
+                          </h3>
+                          {favoriteModels.length > 0 && (
+                            <span className="text-[10px] text-amber-400/60">
+                              {favoriteModels.length} starred
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Model search */}
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-white/20" />
+                          <input
+                            type="text"
+                            value={modelSearch[provider.id] || ''}
+                            onChange={(e) => setModelSearch((s) => ({ ...s, [provider.id]: e.target.value }))}
+                            placeholder="Search models..."
+                            className="w-full pl-7 pr-3 py-1.5 rounded-lg text-xs bg-white/5 border border-white/5 outline-none text-white placeholder-white/20 focus:border-white/10 transition-colors"
+                          />
+                          {modelSearch[provider.id] && (
+                            <button
+                              onClick={() => setModelSearch((s) => ({ ...s, [provider.id]: '' }))}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/40 cursor-pointer"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Model list with favorites */}
+                        <div className="max-h-48 overflow-y-auto space-y-0.5 rounded-xl bg-white/5 p-2">
+                          {sortedModels.length === 0 && (
+                            <p className="text-[10px] text-white/20 text-center py-2">No models match</p>
+                          )}
+                          {sortedModels.map((m) => {
+                            const isFav = favoriteModels.includes(m.id);
+                            return (
+                              <div key={m.id} className="group flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <button
+                                    onClick={() => toggleFavoriteModel(provider.id, m.id)}
+                                    className={`shrink-0 transition-colors cursor-pointer ${isFav ? 'text-amber-400' : 'text-white/15 hover:text-amber-400/50'}`}
+                                    title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+                                  >
+                                    <Star className="w-3 h-3" fill={isFav ? 'currentColor' : 'none'} />
+                                  </button>
+                                  <span className={`text-xs font-medium truncate ${isFav ? 'text-white/90' : 'text-white/70'}`}>{m.name}</span>
+                                </div>
+                                {m.contextLength > 0 && (
+                                  <span className="text-[10px] text-white/20 shrink-0 ml-2">{m.contextLength.toLocaleString()} ctx</span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -494,40 +605,40 @@ function WallpaperOption({ wp, isSelected, onSelect }: { wp: typeof WALLPAPERS[0
             : 'border-white/5 hover:border-white/20'
         }`}
       >
-      {isVisible && (
-        <>
-          {wp.type === 'video' ? (
-            <video
-              src={wp.url}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
-              muted
-              preload="metadata"
-              onLoadedData={(e) => {
-                e.currentTarget.currentTime = 0.1;
-                setIsLoaded(true);
-              }}
-            />
-          ) : (
-            <img
-              src={wp.url}
-              alt={wp.label}
-              className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
-              onLoad={() => setIsLoaded(true)}
-            />
-          )}
-          {!isLoaded && (
-            <div className="absolute inset-0 bg-white/5 animate-pulse" />
-          )}
-        </>
-      )}
-      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-end">
-        <span className="text-xs text-white/80 px-2 py-1 font-medium">{wp.label}</span>
-      </div>
-      {isSelected && (
-        <div className="absolute top-1.5 right-1.5">
-          <Check className="w-4 h-4 text-teal-400 drop-shadow-lg" />
+        {isVisible && (
+          <>
+            {wp.type === 'video' ? (
+              <video
+                src={wp.url}
+                className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+                muted
+                preload="metadata"
+                onLoadedData={(e) => {
+                  e.currentTarget.currentTime = 0.1;
+                  setIsLoaded(true);
+                }}
+              />
+            ) : (
+              <img
+                src={wp.url}
+                alt={wp.label}
+                className={`w-full h-full object-cover transition-opacity duration-300 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
+                onLoad={() => setIsLoaded(true)}
+              />
+            )}
+            {!isLoaded && (
+              <div className="absolute inset-0 bg-white/5 animate-pulse" />
+            )}
+          </>
+        )}
+        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-end">
+          <span className="text-xs text-white/80 px-2 py-1 font-medium">{wp.label}</span>
         </div>
-      )}
+        {isSelected && (
+          <div className="absolute top-1.5 right-1.5">
+            <Check className="w-4 h-4 text-teal-400 drop-shadow-lg" />
+          </div>
+        )}
       </button>
     </div>
   );

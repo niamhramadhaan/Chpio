@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, ChevronDown } from 'lucide-react';
 import { useAppStore, useIsMobile } from './store/appStore';
@@ -18,13 +18,16 @@ import type { ChatSession } from './types';
 export default function App() {
   const view = useAppStore((s) => s.view);
   const loadSettings = useSettingsStore((s) => s.loadSettings);
+  const autoSyncProviders = useSettingsStore((s) => s.autoSyncProviders);
   const wallpaper = useSettingsStore((s) => s.wallpaper);
 
   const isVideo = WALLPAPERS.find((w) => w.url === wallpaper)?.type === 'video' || wallpaper.endsWith('.mp4');
 
   useEffect(() => {
     loadSettings();
-  }, [loadSettings]);
+    // Auto-sync providers on app start (checks 12-hour interval)
+    autoSyncProviders();
+  }, [loadSettings, autoSyncProviders]);
 
   return (
     <div className="relative w-full h-screen overflow-hidden">
@@ -72,6 +75,8 @@ function OnboardingView() {
   const recent = useMemo(() => [...sessions].filter((s) => !s.archived).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10), [sessions]);
 
   const [listOpen, setListOpen] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const pauseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleCardClick = (session: ChatSession) => {
     setActiveSession(session.id);
@@ -97,7 +102,20 @@ function OnboardingView() {
     return `${days}d`;
   };
 
-  const shouldAnimate = listOpen && recent.length > 2;
+  const shouldAnimate = listOpen && recent.length > 1;
+
+  // Pause on hover
+  const handleMouseEnter = () => {
+    setIsPaused(true);
+    if (pauseTimer.current) clearTimeout(pauseTimer.current);
+  };
+
+  const handleMouseLeave = () => {
+    setIsPaused(false);
+  };
+
+  // Calculate duration based on item count (keep similar speed to before)
+  const marqueeDuration = recent.length * 4; // 4 seconds per item
 
   return (
     <motion.div
@@ -157,25 +175,16 @@ function OnboardingView() {
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="overflow-hidden"
+                className="overflow-visible"
               >
-                <div className="relative overflow-hidden pb-2">
-                  <motion.div
-                    className="flex gap-3"
-                    animate={shouldAnimate ? {
-                      x: ['0%', '-50%'],
-                    } : {
-                      x: 0,
-                    }}
-                    transition={shouldAnimate ? {
-                      x: {
-                        duration: recent.length * 4,
-                        ease: 'linear',
-                        repeat: Infinity,
-                      },
-                    } : {
-                      duration: 0.5,
-                    }}
+                <div
+                  className="overflow-hidden pb-2"
+                  onMouseEnter={handleMouseEnter}
+                  onMouseLeave={handleMouseLeave}
+                >
+                  <div
+                    className={`flex gap-3 ${shouldAnimate ? 'marquee' : ''} ${isPaused ? 'marquee-paused' : ''}`}
+                    style={shouldAnimate ? { '--marquee-duration': `${marqueeDuration}s` } as React.CSSProperties : undefined}
                   >
                     {[...recent, ...recent].map((session, i) => (
                       <motion.button
@@ -198,7 +207,7 @@ function OnboardingView() {
                         </div>
                       </motion.button>
                     ))}
-                  </motion.div>
+                  </div>
                 </div>
               </motion.div>
             )}

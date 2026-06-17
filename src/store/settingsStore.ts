@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import type { Model, UserProfile, ProviderConfig } from '../types';
 import { DEFAULT_PROVIDERS } from '../types';
+import { fetchProviderModels } from '../services/providers';
 
 const STORAGE_KEY = 'chpio-settings';
+const AUTO_SYNC_INTERVAL = 12 * 60 * 60 * 1000; // 12 hours
 
 interface SettingsState {
   providers: ProviderConfig[];
@@ -17,6 +19,9 @@ interface SettingsState {
   setProviderEnabled: (id: string, enabled: boolean) => void;
   setProviderModels: (id: string, models: Model[]) => void;
   setProviderSynced: (id: string, ts: number) => void;
+  setProviderBaseUrl: (id: string, url: string) => void;
+  resetProviderBaseUrl: (id: string) => void;
+  toggleFavoriteModel: (providerId: string, modelId: string) => void;
   setDefaultModel: (id: string) => void;
   setFallbackModel: (id: string) => void;
   setSelectedModel: (id: string) => void;
@@ -24,6 +29,7 @@ interface SettingsState {
   setWallpaper: (url: string) => void;
   setUser: (user: UserProfile) => void;
   loadSettings: () => void;
+  autoSyncProviders: () => Promise<void>;
 }
 
 const defaultUser: UserProfile = {
@@ -48,7 +54,15 @@ function loadFromStorage(): Partial<SettingsState> {
     if (data.providers && Array.isArray(data.providers)) {
       providers = DEFAULT_PROVIDERS.map((dp) => {
         const saved = data.providers.find((p: ProviderConfig) => p.id === dp.id);
-        return saved ? { ...dp, ...saved } : dp;
+        if (saved) {
+          return {
+            ...dp,
+            ...saved,
+            defaultBaseUrl: dp.defaultBaseUrl,
+            favoriteModels: saved.favoriteModels || [],
+          };
+        }
+        return dp;
       });
     } else if (data.apiKey) {
       providers = DEFAULT_PROVIDERS.map((p) =>
@@ -136,6 +150,41 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
   },
 
+  setProviderBaseUrl: (id, url) => {
+    const providers = get().providers.map((p) =>
+      p.id === id ? { ...p, baseUrl: url } : p
+    );
+    set({ providers });
+    const st = get();
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
+  },
+
+  resetProviderBaseUrl: (id) => {
+    const providers = get().providers.map((p) =>
+      p.id === id ? { ...p, baseUrl: p.defaultBaseUrl } : p
+    );
+    set({ providers });
+    const st = get();
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
+  },
+
+  toggleFavoriteModel: (providerId, modelId) => {
+    const providers = get().providers.map((p) => {
+      if (p.id !== providerId) return p;
+      const favorites = p.favoriteModels || [];
+      const isFav = favorites.includes(modelId);
+      return {
+        ...p,
+        favoriteModels: isFav
+          ? favorites.filter((id) => id !== modelId)
+          : [...favorites, modelId],
+      };
+    });
+    set({ providers });
+    const st = get();
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
+  },
+
   setDefaultModel: (id) => {
     set({ defaultModelId: id });
     const st = get();
@@ -173,5 +222,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   loadSettings: () => {
     const saved = loadFromStorage();
     set(saved);
+  },
+
+  autoSyncProviders: async () => {
+    const { providers, setProviderModels, setProviderSynced } = get();
+    const now = Date.now();
+
+    for (const provider of providers) {
+      if (!provider.enabled) continue;
+      if (provider.id !== 'ollama' && provider.id !== 'llamacpp' && !provider.apiKey) continue;
+
+      const lastSynced = provider.modelsLastSynced || 0;
+      if (now - lastSynced < AUTO_SYNC_INTERVAL) continue;
+
+      try {
+        const models = await fetchProviderModels(provider.baseUrl, provider.apiKey || undefined, provider.id);
+        setProviderModels(provider.id, models);
+        setProviderSynced(provider.id, now);
+      } catch (e) {
+        console.error(`Auto-sync failed for ${provider.name}:`, e);
+      }
+    }
   },
 }));

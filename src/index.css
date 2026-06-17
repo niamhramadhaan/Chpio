@@ -95,6 +95,24 @@
   }
 }
 
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.marquee {
+  animation: marquee var(--marquee-duration, 40s) linear infinite;
+  will-change: transform;
+}
+
+.marquee-paused {
+  animation-play-state: paused;
+}
+
 .katex-inline {
   font-size: 1em;
   color: rgba(255, 255, 255, 0.85);

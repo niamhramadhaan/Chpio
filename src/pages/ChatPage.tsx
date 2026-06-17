@@ -771,6 +771,7 @@ export function ChatPage() {
                 timestamp={msg.timestamp}
                 getModelName={getModelName}
                 isError={msg.content.startsWith('Error:')}
+                fallbackModelId={fallbackModelId}
                 onRegenerate={() => handleRegenerateMessage(msg.id)}
                 onEdit={(newContent) => handleEditMessage(msg.id, newContent)}
                 onRemember={() => handleRemember(msg.id, msg.content)}
@@ -977,6 +978,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   timestamp,
   getModelName,
   isError,
+  fallbackModelId,
   onRegenerate,
   onEdit,
   onRemember,
@@ -991,6 +993,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   timestamp: number;
   getModelName: (id: string) => string;
   isError: boolean;
+  fallbackModelId: string;
   onRegenerate: () => void;
   onEdit: (newContent: string) => void;
   onRemember: () => void;
@@ -1095,6 +1098,9 @@ const AssistantMessage = React.memo(function AssistantMessage({
                 </span>
                 <span className="text-[10px] text-white/20">·</span>
                 <span className="text-[10px] text-white/40">{getModelName(modelId)}</span>
+                {fallbackModelId && modelId === fallbackModelId && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-400 font-medium">Fallback</span>
+                )}
                 {!isError && !(isStreaming && content) && (
                   <button
                     onClick={() => { setEditing(true); setEditValue(content); }}
