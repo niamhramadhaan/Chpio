@@ -250,7 +250,7 @@ export default function MemoryPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 shrink-0">
+      <div className="px-4 pt-4 pb-2 shrink-0">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium text-white/70">Memory</h2>
           <button
@@ -280,9 +280,11 @@ export default function MemoryPage() {
         </div>
       </div>
 
+      <div className="h-px bg-white/5 mx-4 shrink-0" />
+
       {/* Tag Filters */}
       {allTags.length > 0 && (
-        <div className="px-4 pb-3 flex flex-wrap gap-1.5 shrink-0">
+        <div className="px-4 pt-2 pb-3 flex flex-wrap gap-1.5 shrink-0">
           <TagChip
             label="all"
             count={memories.length}

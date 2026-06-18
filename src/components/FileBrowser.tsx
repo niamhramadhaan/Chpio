@@ -273,7 +273,7 @@ export function FileBrowser({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-3 shrink-0 space-y-2">
+      <div className="px-4 pt-4 pb-2 shrink-0 space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
             <button
@@ -321,8 +321,10 @@ export function FileBrowser({
         </div>
       </div>
 
+      <div className="h-px bg-white/5 mx-3 shrink-0" />
+
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-3 pb-3">
+      <div className="flex-1 overflow-y-auto px-3 pt-2 pb-3">
         {filtered.length === 0 ? (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
