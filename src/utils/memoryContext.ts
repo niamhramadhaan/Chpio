@@ -82,12 +82,25 @@ Examples of bad memories (too vague):
     },
   ];
 
+  const timeoutMs = 15000;
   let summary = '';
-  for await (const chunk of streamFn(messages)) {
-    if (chunk.type === 'content') {
-      summary += chunk.text;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    const id = setTimeout(() => {
+      clearTimeout(id);
+      reject(new Error('Memory extraction timed out'));
+    }, timeoutMs);
+  });
+
+  const streamPromise = (async () => {
+    for await (const chunk of streamFn(messages)) {
+      if (chunk.type === 'content') {
+        summary += chunk.text;
+      }
     }
-  }
+  })();
+
+  await Promise.race([streamPromise, timeoutPromise]);
 
   const result = summary.trim().replace(/^["']|["']$/g, '');
 

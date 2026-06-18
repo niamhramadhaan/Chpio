@@ -6,6 +6,7 @@ export type Feature =
   | 'notes'
   | 'docs'
   | 'research'
+  | 'email'
   | 'calendar'
   | 'memory'
   | 'settings';
@@ -268,3 +269,53 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     favoriteModels: [],
   },
 ];
+
+// Email types
+export interface EmailAccount {
+  id: string;
+  name: string;
+  email: string;
+  imapHost: string;
+  imapPort: number;
+  imapSecure: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecure: boolean;
+  username: string;
+  createdAt?: number;
+}
+
+export interface EmailFolder {
+  name: string;
+  path: string;
+  delimiter: string;
+  unreadCount: number;
+  totalCount: number;
+  specialUse?: string;
+}
+
+export interface EmailMessage {
+  uid: number;
+  messageId: string;
+  folder: string;
+  from: { name: string; address: string };
+  to: { name: string; address: string }[];
+  subject: string;
+  snippet: string;
+  htmlBody?: string;
+  textBody?: string;
+  date: number;
+  isRead: boolean;
+  isStarred: boolean;
+  hasAttachments: boolean;
+  attachments?: EmailAttachment[];
+  triage?: 'urgent' | 'fyi' | 'newsletter' | 'spam' | null;
+  tags?: string[];
+}
+
+export interface EmailAttachment {
+  partId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+}

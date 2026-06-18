@@ -10,10 +10,11 @@ import { PageSkeleton, CardSkeleton } from './ui/skeleton';
 const NotesPage = React.lazy(() => import('../pages/NotesPage'));
 const DocsPage = React.lazy(() => import('../pages/DocsPage'));
 const ResearchPage = React.lazy(() => import('../pages/ResearchPage'));
+const EmailPage = React.lazy(() => import('../pages/EmailPage'));
 const CalendarPage = React.lazy(() => import('../pages/CalendarPage'));
 const MemoryPage = React.lazy(() => import('../pages/MemoryPage'));
 
-const rightPages = ['chat', 'notes', 'docs', 'research', 'calendar', 'memory', 'settings'] as const;
+const rightPages = ['chat', 'notes', 'docs', 'research', 'email', 'calendar', 'memory', 'settings'] as const;
 
 function PageFallback({ type = 'default' }: { type?: 'default' | 'cards' }) {
   return (
@@ -59,6 +60,7 @@ export function RightPanel() {
                 {activeFeature === 'notes' && <NotesPage />}
                 {activeFeature === 'docs' && <DocsPage />}
                 {activeFeature === 'research' && <ResearchPage />}
+                {activeFeature === 'email' && <EmailPage />}
                 {activeFeature === 'calendar' && <CalendarPage />}
                 {activeFeature === 'memory' && <MemoryPage />}
                 {activeFeature === 'settings' && <SettingsPanel />}

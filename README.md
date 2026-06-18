@@ -17,6 +17,7 @@ Self-hosted AI workspace. Chat with any local model or API, organize with projec
 - **In-chat search** (Ctrl+F) 🔍
 - Right-click context menus
 - File attachments
+- **Save to Memory** — extract key facts from any message
 
 ### Notes & Tasks 📝
 - Pocket card folder system
@@ -33,12 +34,23 @@ Self-hosted AI workspace. Chat with any local model or API, organize with projec
 - Export as **Markdown, HTML, or Word (.docx)**
 - Floating modal editor with glassmorphic design
 - Auto-save
+- **Enhanced grid view** — responsive columns, content previews, date grouping, richer card layout
+
+### Deep Research 🔬
+- **Multi-step AI research** — plan, search, read, evaluate, report
+- Powered by **Tavily** web search API
+- Live progress tracking with elapsed timer
+- Expandable source cards with favicons and extracted facts
+- **Suggested follow-up queries** after completion
+- **Save to Docs** — export research reports as documents
+- Research history with session management
 
 ### Memory 🧠
 - Persistent memory store
 - AI-powered summarization from chat
 - Tag-based organization
 - Search functionality
+- **Error-aware save** — distinguishes "nothing notable" from actual failures
 
 ---
 
@@ -57,6 +69,12 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173), go to **Settings**, add your API key, sync models, and start chatting!
 
+### Deep Research Setup
+1. Go to **Settings → Research**
+2. Enter your [Tavily API key](https://tavily.com) (free: 1000 searches/mo)
+3. Click **Test** to verify, then **Save**
+4. Open **Deep Research** from the bottom dock and start exploring!
+
 ---
 
 ## 🎨 Tech Stack
@@ -71,6 +89,7 @@ Open [http://localhost:5173](http://localhost:5173), go to **Settings**, add you
 | 🎭 Framer Motion | Animations |
 | ✏️ TipTap | Rich Text Editor |
 | 📝 Lucide Icons | Icons |
+| 🔍 Tavily | Web Search API |
 
 ---
 
@@ -80,10 +99,11 @@ Open [http://localhost:5173](http://localhost:5173), go to **Settings**, add you
 src/
 ├── components/     # UI components
 │   ├── editor/     # TipTap editor components
+│   ├── research/   # Deep research UI components
 │   └── ui/         # Reusable UI primitives
 ├── pages/          # Page components
 ├── store/          # Zustand stores
-├── services/       # API providers
+├── services/       # API providers & orchestration
 ├── utils/          # Helper functions
 └── types/          # TypeScript types
 ```

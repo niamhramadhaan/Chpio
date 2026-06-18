@@ -17,7 +17,11 @@ function loadMemories(): Memory[] {
 function saveMemories(memories: Memory[]) {
   if (memoriesSaveTimer) clearTimeout(memoriesSaveTimer);
   memoriesSaveTimer = setTimeout(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(memories));
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(memories));
+    } catch (err) {
+      console.error('[memoryStore] Failed to persist memories:', err);
+    }
   }, 300);
 }
 

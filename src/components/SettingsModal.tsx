@@ -3,9 +3,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   RefreshCw, Eye, EyeOff, ChevronDown, ChevronUp, Zap, Power, PowerOff,
   Check, Settings as SettingsIcon, Palette, Server, CheckCircle2, XCircle, Star,
-  Search, RotateCcw, X,
+  Search, RotateCcw, X, ExternalLink, Mail,
 } from 'lucide-react';
 import { useSettingsStore } from '../store/settingsStore';
+import { useEmailStore } from '../store/emailStore';
+import { testImapConnection, addAccount } from '../services/emailApi';
 import { useAppStore } from '../store/appStore';
 import { Modal } from './ui/Modal';
 import { GlassCard } from './ui/GlassCard';
@@ -13,6 +15,7 @@ import { GlassButton } from './ui/GlassButton';
 import { ConfirmModal } from './ui/ConfirmModal';
 import { PortalDropdown } from './ui/PortalDropdown';
 import { testConnection, fetchProviderModels } from '../services/providers';
+import { testTavilyConnection } from '../services/tavily';
 import { WALLPAPERS } from '../types';
 import { getActiveModels } from '../utils/models';
 import type { ProviderConfig } from '../types';
@@ -31,7 +34,7 @@ const PROVIDER_LOGOS: Record<string, string> = {
   fireworks: 'https://cdn.simpleicons.org/fireworks',
 };
 
-type Tab = 'providers' | 'defaultModel' | 'wallpaper';
+type Tab = 'providers' | 'defaultModel' | 'wallpaper' | 'research' | 'email';
 
 export function SettingsModal() {
   const { settingsModalOpen, setSettingsModalOpen } = useAppStore();
@@ -41,6 +44,8 @@ export function SettingsModal() {
     { id: 'providers', label: 'Providers', icon: Server },
     { id: 'defaultModel', label: 'Default Model', icon: SettingsIcon },
     { id: 'wallpaper', label: 'Wallpaper', icon: Palette },
+    { id: 'research', label: 'Research', icon: Search },
+    { id: 'email', label: 'Email', icon: Mail },
   ];
 
   return (
@@ -80,6 +85,8 @@ export function SettingsModal() {
           {activeTab === 'providers' && <ProvidersTab />}
           {activeTab === 'defaultModel' && <DefaultModelTab />}
           {activeTab === 'wallpaper' && <WallpaperTab />}
+          {activeTab === 'research' && <ResearchTab />}
+          {activeTab === 'email' && <EmailTab />}
         </div>
       </div>
     </Modal>
@@ -657,6 +664,332 @@ function WallpaperTab() {
           onSelect={() => setWallpaper(wp.url)}
         />
       ))}
+    </div>
+  );
+}
+
+function ResearchTab() {
+  const { tavilyApiKey, setTavilyApiKey } = useSettingsStore();
+  const [draftKey, setDraftKey] = useState(tavilyApiKey);
+  const [showKey, setShowKey] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [confirmUpdate, setConfirmUpdate] = useState(false);
+
+  useEffect(() => {
+    setDraftKey(tavilyApiKey);
+    setTestResult(null);
+  }, [tavilyApiKey]);
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    const result = await testTavilyConnection(draftKey.trim());
+    setTestResult({ ok: result.ok, msg: result.ok ? 'Connected!' : result.error || 'Failed' });
+    setTesting(false);
+  };
+
+  const handleSave = () => {
+    if (draftKey.trim() !== tavilyApiKey) {
+      setConfirmUpdate(true);
+    }
+  };
+
+  const confirmSave = () => {
+    setTavilyApiKey(draftKey.trim());
+    setConfirmUpdate(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <GlassCard className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Search className="w-4 h-4 text-teal-400/60" />
+          <h3 className="text-sm font-medium text-white/70">Tavily API Key</h3>
+        </div>
+        <p className="text-[11px] text-white/30 leading-relaxed">
+          Required for Deep Research. Enables web search with AI-optimized results.
+        </p>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-white/40">API Key</label>
+          <div className="relative">
+            <input
+              type={showKey ? 'text' : 'password'}
+              value={draftKey}
+              onChange={(e) => { setDraftKey(e.target.value); setTestResult(null); }}
+              placeholder="tvly-..."
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 pr-10 text-sm text-white/80 placeholder-white/20 outline-none focus:border-teal-400/30 transition-colors"
+            />
+            <button
+              type="button"
+              onClick={() => setShowKey(!showKey)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+            >
+              {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <GlassButton
+            onClick={handleTest}
+            disabled={testing || !draftKey.trim()}
+            size="sm"
+            className="flex items-center gap-1.5"
+          >
+            <Zap className={`w-3.5 h-3.5 ${testing ? 'animate-pulse' : ''}`} />
+            {testing ? 'Testing...' : 'Test'}
+          </GlassButton>
+          <GlassButton onClick={handleSave} disabled={draftKey.trim() === tavilyApiKey}>
+            Save
+          </GlassButton>
+          {tavilyApiKey && !testResult && (
+            <span className="text-[10px] text-teal-400/40">Key configured</span>
+          )}
+        </div>
+        {testResult?.msg && (
+          <div className={`flex items-center gap-2 text-xs ${testResult.ok ? 'text-teal-400' : 'text-red-400'}`}>
+            {testResult.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+            {testResult.msg}
+          </div>
+        )}
+        <a
+          href="https://tavily.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-[10px] text-white/20 hover:text-white/40 transition-colors"
+        >
+          Get a free API key at tavily.com <ExternalLink className="w-3 h-3" />
+        </a>
+      </GlassCard>
+
+      <ConfirmModal
+        isOpen={confirmUpdate}
+        onClose={() => setConfirmUpdate(false)}
+        onConfirm={confirmSave}
+        title="Update Tavily API Key?"
+        message="This will replace your current Tavily API key used for Deep Research."
+        confirmLabel="Update Key"
+      />
+    </div>
+  );
+}
+
+function EmailTab() {
+  const { accounts, addAccount: addAccountToStore, removeAccount, serverUrl, setServerUrl } = useEmailStore();
+  const [draftServerUrl, setDraftServerUrl] = useState(serverUrl);
+  const [testingServer, setTestingServer] = useState(false);
+  const [serverResult, setServerResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [draft, setDraft] = useState({
+    name: '', email: '',
+    imapHost: 'imap.gmail.com', imapPort: 993, imapSecure: true,
+    smtpHost: 'smtp.gmail.com', smtpPort: 587, smtpSecure: false,
+    username: '', password: '',
+  });
+  const [testingImap, setTestingImap] = useState(false);
+  const [imapResult, setImapResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleTestServer = async () => {
+    setTestingServer(true);
+    setServerResult(null);
+    try {
+      const res = await fetch(`${draftServerUrl}/api/health`);
+      const data = await res.json();
+      setServerResult({ ok: data.ok, msg: data.ok ? 'Server connected!' : 'Server error' });
+    } catch {
+      setServerResult({ ok: false, msg: 'Cannot reach server' });
+    }
+    setTestingServer(false);
+  };
+
+  const handleSaveServerUrl = () => {
+    setServerUrl(draftServerUrl.trim());
+  };
+
+  const handleTestImap = async () => {
+    setTestingImap(true);
+    setImapResult(null);
+    try {
+      const result = await testImapConnection({
+        imapHost: draft.imapHost,
+        imapPort: draft.imapPort,
+        imapSecure: draft.imapSecure,
+        username: draft.username,
+        password: draft.password,
+      });
+      setImapResult({ ok: result.ok, msg: result.ok ? 'Connected!' : result.error || 'Failed' });
+    } catch (err) {
+      setImapResult({ ok: false, msg: err instanceof Error ? err.message : 'Connection failed' });
+    }
+    setTestingImap(false);
+  };
+
+  const handleAddAccount = async () => {
+    try {
+      const result = await addAccount(draft);
+      addAccountToStore({ ...draft, id: result.id });
+      setShowAdd(false);
+      setDraft({
+        name: '', email: '',
+        imapHost: 'imap.gmail.com', imapPort: 993, imapSecure: true,
+        smtpHost: 'smtp.gmail.com', smtpPort: 587, smtpSecure: false,
+        username: '', password: '',
+      });
+    } catch (err) {
+      console.error('[email] Failed to add account:', err);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Server URL */}
+      <GlassCard className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Mail className="w-4 h-4 text-teal-400/60" />
+          <h3 className="text-sm font-medium text-white/70">Companion Server</h3>
+        </div>
+        <p className="text-[11px] text-white/30 leading-relaxed">
+          URL of the chpio-server that handles IMAP/SMTP connections.
+        </p>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-white/40">Server URL</label>
+          <input
+            type="text"
+            value={draftServerUrl}
+            onChange={(e) => setDraftServerUrl(e.target.value)}
+            placeholder="http://localhost:3001"
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 placeholder-white/20 outline-none focus:border-teal-400/30 transition-colors"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <GlassButton onClick={handleTestServer} disabled={testingServer || !draftServerUrl.trim()} size="sm" className="flex items-center gap-1.5">
+            <Zap className={`w-3.5 h-3.5 ${testingServer ? 'animate-pulse' : ''}`} />
+            {testingServer ? 'Testing...' : 'Test'}
+          </GlassButton>
+          <GlassButton onClick={handleSaveServerUrl} disabled={draftServerUrl.trim() === serverUrl} size="sm">
+            Save
+          </GlassButton>
+        </div>
+        {serverResult?.msg && (
+          <div className={`flex items-center gap-2 text-xs ${serverResult.ok ? 'text-teal-400' : 'text-red-400'}`}>
+            {serverResult.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+            {serverResult.msg}
+          </div>
+        )}
+      </GlassCard>
+
+      {/* Accounts */}
+      <GlassCard className="p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-white/70">Email Accounts</h3>
+          <GlassButton onClick={() => setShowAdd(!showAdd)} size="sm">
+            {showAdd ? 'Cancel' : '+ Add Account'}
+          </GlassButton>
+        </div>
+
+        {accounts.length > 0 && (
+          <div className="space-y-1">
+            {accounts.map((acc) => (
+              <div key={acc.id} className="flex items-center gap-2 p-2 rounded-lg bg-white/[0.03]">
+                <Mail className="w-3.5 h-3.5 text-white/20" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-white/60 truncate">{acc.name || acc.email}</p>
+                  <p className="text-[9px] text-white/20 truncate">{acc.email}</p>
+                </div>
+                <button
+                  onClick={() => removeAccount(acc.id)}
+                  className="p-1 rounded text-white/10 hover:text-red-400/60 transition-colors cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {accounts.length === 0 && !showAdd && (
+          <p className="text-[11px] text-white/20">No accounts configured</p>
+        )}
+
+        {showAdd && (
+          <div className="space-y-3 pt-2 border-t border-white/[0.06]">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[10px] text-white/30">Display Name</label>
+                <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="John Doe" className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white/70 placeholder-white/20 outline-none focus:border-teal-400/30" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-white/30">Email</label>
+                <input value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} placeholder="you@gmail.com" className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white/70 placeholder-white/20 outline-none focus:border-teal-400/30" />
+              </div>
+            </div>
+
+            <p className="text-[10px] text-white/30 font-medium">IMAP Settings</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2 space-y-1">
+                <label className="text-[10px] text-white/30">Host</label>
+                <input value={draft.imapHost} onChange={(e) => setDraft({ ...draft, imapHost: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white/70 placeholder-white/20 outline-none focus:border-teal-400/30" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-white/30">Port</label>
+                <input type="number" value={draft.imapPort} onChange={(e) => setDraft({ ...draft, imapPort: parseInt(e.target.value) || 993 })} className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white/70 outline-none focus:border-teal-400/30" />
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-[10px] text-white/30 cursor-pointer">
+              <input type="checkbox" checked={draft.imapSecure} onChange={(e) => setDraft({ ...draft, imapSecure: e.target.checked })} className="accent-teal-400" />
+              SSL/TLS
+            </label>
+
+            <p className="text-[10px] text-white/30 font-medium">SMTP Settings</p>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="col-span-2 space-y-1">
+                <label className="text-[10px] text-white/30">Host</label>
+                <input value={draft.smtpHost} onChange={(e) => setDraft({ ...draft, smtpHost: e.target.value })} className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white/70 placeholder-white/20 outline-none focus:border-teal-400/30" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] text-white/30">Port</label>
+                <input type="number" value={draft.smtpPort} onChange={(e) => setDraft({ ...draft, smtpPort: parseInt(e.target.value) || 587 })} className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white/70 outline-none focus:border-teal-400/30" />
+              </div>
+            </div>
+            <label className="flex items-center gap-2 text-[10px] text-white/30 cursor-pointer">
+              <input type="checkbox" checked={draft.smtpSecure} onChange={(e) => setDraft({ ...draft, smtpSecure: e.target.checked })} className="accent-teal-400" />
+              STARTTLS
+            </label>
+
+            <p className="text-[10px] text-white/30 font-medium">Credentials</p>
+            <div className="space-y-1">
+              <label className="text-[10px] text-white/30">Username</label>
+              <input value={draft.username} onChange={(e) => setDraft({ ...draft, username: e.target.value })} placeholder="you@gmail.com" className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-[11px] text-white/70 placeholder-white/20 outline-none focus:border-teal-400/30" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-white/30">Password</label>
+              <div className="relative">
+                <input type={showPassword ? 'text' : 'password'} value={draft.password} onChange={(e) => setDraft({ ...draft, password: e.target.value })} placeholder="App password" className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 pr-8 text-[11px] text-white/70 placeholder-white/20 outline-none focus:border-teal-400/30" />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-2 top-1/2 -translate-y-1/2 text-white/20 hover:text-white/40 cursor-pointer">
+                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <GlassButton onClick={handleTestImap} disabled={testingImap || !draft.username || !draft.password} size="sm" className="flex items-center gap-1.5">
+                <Zap className={`w-3.5 h-3.5 ${testingImap ? 'animate-pulse' : ''}`} />
+                {testingImap ? 'Testing...' : 'Test Connection'}
+              </GlassButton>
+              <GlassButton onClick={handleAddAccount} disabled={!draft.email || !draft.username || !draft.password} size="sm">
+                Add Account
+              </GlassButton>
+            </div>
+            {imapResult?.msg && (
+              <div className={`flex items-center gap-2 text-xs ${imapResult.ok ? 'text-teal-400' : 'text-red-400'}`}>
+                {imapResult.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                {imapResult.msg}
+              </div>
+            )}
+          </div>
+        )}
+      </GlassCard>
     </div>
   );
 }

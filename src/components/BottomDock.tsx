@@ -5,7 +5,7 @@ import {
   StickyNote,
   FileText,
   Search,
-  Calendar,
+  Mail,
   Database,
 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
@@ -23,7 +23,7 @@ const dockItems: DockItem[] = [
   { id: 2, feature: 'notes', icon: StickyNote, label: 'Notes' },
   { id: 3, feature: 'docs', icon: FileText, label: 'Docs' },
   { id: 4, feature: 'research', icon: Search, label: 'Research' },
-  { id: 5, feature: 'calendar', icon: Calendar, label: 'Calendar' },
+  { id: 5, feature: 'email', icon: Mail, label: 'Email' },
   { id: 6, feature: 'memory', icon: Database, label: 'Memory' },
 ];
 
