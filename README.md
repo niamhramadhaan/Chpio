@@ -2,7 +2,7 @@
 
 > Your self-hosted AI workspace (ﾉ◕ヮ◕)ﾉ*:・ﾟ✧
 
-Self-hosted AI workspace. Chat with any local model or API, organize with projects, and take notes — all local-first, privacy-first.
+Self-hosted AI workspace. Chat with any local model or API, organize with projects, take notes, manage email, and do deep research — all local-first, privacy-first.
 
 ---
 
@@ -45,6 +45,18 @@ Self-hosted AI workspace. Chat with any local model or API, organize with projec
 - **Save to Docs** — export research reports as documents
 - Research history with session management
 
+### Email 📧
+- **IMAP/SMTP** email client with companion server
+- **AI triage** — auto-classifies emails as urgent, FYI, newsletter, or spam
+- **Smart tags** — AI extracts topic tags per message
+- **Compose** — reply, forward, and new emails
+- **AI reply drafts** — streaming draft generation from thread context
+- **Thread view** — grouped messages by subject
+- **Save to Docs** — export email threads as documents
+- **Create Task** — turn emails into follow-up tasks
+- **Real-time** — SSE push notifications + desktop notifications
+- **Attachment** support with download
+
 ### Memory 🧠
 - Persistent memory store
 - AI-powered summarization from chat
@@ -60,10 +72,10 @@ Self-hosted AI workspace. Chat with any local model or API, organize with projec
 # Clone the repo (╯°□°)╯︵ ┻━┻
 git clone <your-repo-url>
 
-# Install dependencies
+# Install frontend dependencies
 npm install
 
-# Start the dev server (ﾉ◕ヮ◕)ﾉ*:・ﾟ✧
+# Start the frontend dev server (ﾉ◕ヮ◕)ﾉ*:・ﾟ✧
 npm run dev
 ```
 
@@ -74,6 +86,21 @@ Open [http://localhost:5173](http://localhost:5173), go to **Settings**, add you
 2. Enter your [Tavily API key](https://tavily.com) (free: 1000 searches/mo)
 3. Click **Test** to verify, then **Save**
 4. Open **Deep Research** from the bottom dock and start exploring!
+
+### Email Setup
+```bash
+# Install companion server dependencies
+cd server
+npm install
+
+# Start the email server
+npm run dev
+```
+1. Go to **Settings → Email**
+2. Enter the server URL (default: `http://localhost:3001`)
+3. Click **Test** to verify connection
+4. Add your email account (IMAP/SMTP credentials)
+5. Open **Email** from the bottom dock!
 
 ---
 
@@ -90,22 +117,42 @@ Open [http://localhost:5173](http://localhost:5173), go to **Settings**, add you
 | ✏️ TipTap | Rich Text Editor |
 | 📝 Lucide Icons | Icons |
 | 🔍 Tavily | Web Search API |
+| 📬 imapflow | IMAP Client |
+| 📨 nodemailer | SMTP Sending |
+| 📮 postal-mime | MIME Parsing |
+| 💾 better-sqlite3 | Email Cache |
 
 ---
 
 ## 📁 Project Structure
 
 ```
-src/
-├── components/     # UI components
-│   ├── editor/     # TipTap editor components
-│   ├── research/   # Deep research UI components
-│   └── ui/         # Reusable UI primitives
-├── pages/          # Page components
-├── store/          # Zustand stores
-├── services/       # API providers & orchestration
-├── utils/          # Helper functions
-└── types/          # TypeScript types
+src/                             # Frontend
+├── components/                  # UI components
+│   ├── editor/                  # TipTap editor components
+│   ├── email/                   # Email UI (FolderList, EmailList, etc.)
+│   ├── research/                # Deep research UI components
+│   └── ui/                      # Reusable UI primitives
+├── pages/                       # Page components
+├── store/                       # Zustand stores
+├── services/                    # API providers & orchestration
+├── utils/                       # Helper functions
+└── types/                       # TypeScript types
+
+server/                          # Email companion server
+├── src/
+│   ├── index.ts                 # Express entry point
+│   ├── db.ts                    # SQLite schema + queries
+│   ├── imap.ts                  # IMAP connection pool
+│   ├── smtp.ts                  # SMTP sending
+│   └── routes/                  # REST API endpoints
+│       ├── accounts.ts          # Account CRUD
+│       ├── folders.ts           # Folder listing
+│       ├── messages.ts          # Messages + triage
+│       ├── send.ts              # Send email
+│       └── events.ts            # SSE real-time events
+├── package.json
+└── tsconfig.json
 ```
 
 ---
