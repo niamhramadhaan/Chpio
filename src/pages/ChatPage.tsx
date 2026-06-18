@@ -23,6 +23,7 @@ import {
   Bookmark,
   X,
   Star,
+  AlertCircle,
 } from 'lucide-react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { useChatStore } from '../store/chatStore';
@@ -105,6 +106,8 @@ export function ChatPage() {
   const [rememberingMsgId, setRememberingMsgId] = useState<string | null>(null);
   const [rememberedMsgId, setRememberedMsgId] = useState<string | null>(null);
   const [nothingToRemember, setNothingToRemember] = useState<string | null>(null);
+  const [rememberErrorMsgId, setRememberErrorMsgId] = useState<string | null>(null);
+  const [rememberErrorText, setRememberErrorText] = useState<string>('');
   const createMemory = useMemoryStore((s) => s.createMemory);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -199,6 +202,13 @@ export function ChatPage() {
         behavior: 'instant',
       });
     });
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'instant',
+      });
+    }, 450);
+    return () => clearTimeout(timer);
   }, [activeSessionId, session?.messages?.length]);
 
   const handleScroll = () => {
@@ -432,6 +442,7 @@ export function ChatPage() {
   const handleRemember = useCallback(async (msgId: string, content: string) => {
     if (rememberingMsgId) return;
     setRememberingMsgId(msgId);
+    setRememberErrorMsgId(null);
 
     try {
       const m = models.find((x) => x.id === activeModelId);
@@ -441,8 +452,10 @@ export function ChatPage() {
       const apiKey = p?.apiKey || undefined;
 
       if (!m || !p) {
-        setNothingToRemember(msgId);
-        setTimeout(() => setNothingToRemember(null), 2000);
+        setNothingToRemember(null);
+        setRememberErrorText('Configure a provider first');
+        setRememberErrorMsgId(msgId);
+        setTimeout(() => setRememberErrorMsgId(null), 3000);
         return;
       }
 
@@ -458,10 +471,12 @@ export function ChatPage() {
         setNothingToRemember(msgId);
         setTimeout(() => setNothingToRemember(null), 2000);
       }
-    } catch {
-      setNothingToRemember(msgId);
-      setTimeout(() => setNothingToRemember(null), 2000);
-      setTimeout(() => setRememberedMsgId(null), 2000);
+    } catch (err) {
+      console.error('[handleRemember] Failed:', err);
+      const message = err instanceof Error ? err.message : 'Failed to save memory';
+      setRememberErrorText(message);
+      setRememberErrorMsgId(msgId);
+      setTimeout(() => setRememberErrorMsgId(null), 3000);
     } finally {
       setRememberingMsgId(null);
     }
@@ -761,6 +776,8 @@ export function ChatPage() {
                 isRemembering={rememberingMsgId === msg.id}
                 isRemembered={rememberedMsgId === msg.id}
                 isNothingToRemember={nothingToRemember === msg.id}
+                isRememberError={rememberErrorMsgId === msg.id}
+                rememberErrorText={rememberErrorMsgId === msg.id ? rememberErrorText : ''}
               />
             ) : (
               <AssistantMessage
@@ -778,6 +795,8 @@ export function ChatPage() {
                 isRemembering={rememberingMsgId === msg.id}
                 isRemembered={rememberedMsgId === msg.id}
                 isNothingToRemember={nothingToRemember === msg.id}
+                isRememberError={rememberErrorMsgId === msg.id}
+                rememberErrorText={rememberErrorMsgId === msg.id ? rememberErrorText : ''}
               />
             );
 
@@ -825,7 +844,7 @@ export function ChatPage() {
   );
 }
 
-const UserMessage = React.memo(function UserMessage({ content, timestamp, onEdit, onRemember, isRemembering, isRemembered, isNothingToRemember }: { content: string; timestamp: number; onEdit: (newContent: string) => void; onRemember: () => void; isRemembering: boolean; isRemembered: boolean; isNothingToRemember: boolean }) {
+const UserMessage = React.memo(function UserMessage({ content, timestamp, onEdit, onRemember, isRemembering, isRemembered, isNothingToRemember, isRememberError, rememberErrorText }: { content: string; timestamp: number; onEdit: (newContent: string) => void; onRemember: () => void; isRemembering: boolean; isRemembered: boolean; isNothingToRemember: boolean; isRememberError: boolean; rememberErrorText: string }) {
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(content);
@@ -915,10 +934,10 @@ const UserMessage = React.memo(function UserMessage({ content, timestamp, onEdit
                   onClick={onRemember}
                   disabled={isRemembering}
                   className="p-1 rounded-md text-white/40 hover:text-teal-400 hover:bg-white/10 transition-all cursor-pointer disabled:opacity-40"
-                  title="Save to memory"
+                  title={isRememberError ? rememberErrorText : "Save to memory"}
                   aria-label="Save to memory"
                 >
-                  {isRemembered ? <Check className="w-3 h-3 text-teal-400" /> : isNothingToRemember ? <X className="w-3 h-3 text-white/30" /> : isRemembering ? <span className="w-3 h-3 block rounded-full border-2 border-teal-400/40 border-t-teal-400 animate-spin" /> : <Bookmark className="w-3 h-3" />}
+                  {isRemembered ? <Check className="w-3 h-3 text-teal-400" /> : isRememberError ? <AlertCircle className="w-3 h-3 text-red-400" /> : isNothingToRemember ? <X className="w-3 h-3 text-white/30" /> : isRemembering ? <span className="w-3 h-3 block rounded-full border-2 border-teal-400/40 border-t-teal-400 animate-spin" /> : <Bookmark className="w-3 h-3" />}
                 </button>
               </div>
             </div>
@@ -985,6 +1004,8 @@ const AssistantMessage = React.memo(function AssistantMessage({
   isRemembering,
   isRemembered,
   isNothingToRemember,
+  isRememberError,
+  rememberErrorText,
 }: {
   content: string;
   thinking?: string;
@@ -1000,6 +1021,8 @@ const AssistantMessage = React.memo(function AssistantMessage({
   isRemembering: boolean;
   isRemembered: boolean;
   isNothingToRemember: boolean;
+  isRememberError: boolean;
+  rememberErrorText: string;
 }) {
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -1131,10 +1154,10 @@ const AssistantMessage = React.memo(function AssistantMessage({
                   onClick={onRemember}
                   disabled={isRemembering}
                   className="p-1 rounded-md text-white/40 hover:text-teal-400 hover:bg-white/10 transition-all cursor-pointer disabled:opacity-40"
-                  title="Save to memory"
+                  title={isRememberError ? rememberErrorText : "Save to memory"}
                   aria-label="Save to memory"
                 >
-                  {isRemembered ? <Check className="w-3 h-3 text-teal-400" /> : isNothingToRemember ? <X className="w-3 h-3 text-white/30" /> : isRemembering ? <span className="w-3 h-3 block rounded-full border-2 border-teal-400/40 border-t-teal-400 animate-spin" /> : <Bookmark className="w-3 h-3" />}
+                  {isRemembered ? <Check className="w-3 h-3 text-teal-400" /> : isRememberError ? <AlertCircle className="w-3 h-3 text-red-400" /> : isNothingToRemember ? <X className="w-3 h-3 text-white/30" /> : isRemembering ? <span className="w-3 h-3 block rounded-full border-2 border-teal-400/40 border-t-teal-400 animate-spin" /> : <Bookmark className="w-3 h-3" />}
                 </button>
               </div>
             </div>

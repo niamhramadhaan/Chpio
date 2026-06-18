@@ -41,6 +41,7 @@ export default function DocsPage() {
     type: 'file' as const,
     updatedAt: d.updatedAt,
     wordCount: d.content.trim().split(/\s+/).filter(Boolean).length,
+    preview: d.content.replace(/[#*_`~\[\]>|\\-]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || undefined,
   }));
 
   const handleCreate = useCallback(() => {
@@ -137,12 +138,11 @@ export default function DocsPage() {
       >
         <FileBrowser
           items={browserItems}
-          activeId={activeDocId}
+          activeId={showList ? null : activeDocId}
           onSelect={handleSelect}
           onCreate={handleCreate}
           onDelete={deleteDoc}
           onRename={handleRename}
-          emptyIcon={<FileText className="w-8 h-8 mb-2" />}
           emptyText="No docs yet"
         />
       </div>

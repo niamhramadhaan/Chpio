@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   RefreshCw, Eye, EyeOff, ChevronDown, ChevronUp, Zap, Power, PowerOff,
   Check, Settings as SettingsIcon, Palette, Server, CheckCircle2, XCircle, Star,
-  Search, RotateCcw, X,
+  Search, RotateCcw, X, ExternalLink,
 } from 'lucide-react';
 import { useSettingsStore } from '../store/settingsStore';
 import { useAppStore } from '../store/appStore';
@@ -13,6 +13,7 @@ import { GlassButton } from './ui/GlassButton';
 import { ConfirmModal } from './ui/ConfirmModal';
 import { PortalDropdown } from './ui/PortalDropdown';
 import { testConnection, fetchProviderModels } from '../services/providers';
+import { testTavilyConnection } from '../services/tavily';
 import { WALLPAPERS } from '../types';
 import { getActiveModels } from '../utils/models';
 import type { ProviderConfig } from '../types';
@@ -31,7 +32,7 @@ const PROVIDER_LOGOS: Record<string, string> = {
   fireworks: 'https://cdn.simpleicons.org/fireworks',
 };
 
-type Tab = 'providers' | 'defaultModel' | 'wallpaper';
+type Tab = 'providers' | 'defaultModel' | 'wallpaper' | 'research';
 
 export function SettingsModal() {
   const { settingsModalOpen, setSettingsModalOpen } = useAppStore();
@@ -41,6 +42,7 @@ export function SettingsModal() {
     { id: 'providers', label: 'Providers', icon: Server },
     { id: 'defaultModel', label: 'Default Model', icon: SettingsIcon },
     { id: 'wallpaper', label: 'Wallpaper', icon: Palette },
+    { id: 'research', label: 'Research', icon: Search },
   ];
 
   return (
@@ -80,6 +82,7 @@ export function SettingsModal() {
           {activeTab === 'providers' && <ProvidersTab />}
           {activeTab === 'defaultModel' && <DefaultModelTab />}
           {activeTab === 'wallpaper' && <WallpaperTab />}
+          {activeTab === 'research' && <ResearchTab />}
         </div>
       </div>
     </Modal>
@@ -657,6 +660,112 @@ function WallpaperTab() {
           onSelect={() => setWallpaper(wp.url)}
         />
       ))}
+    </div>
+  );
+}
+
+function ResearchTab() {
+  const { tavilyApiKey, setTavilyApiKey } = useSettingsStore();
+  const [draftKey, setDraftKey] = useState(tavilyApiKey);
+  const [showKey, setShowKey] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [confirmUpdate, setConfirmUpdate] = useState(false);
+
+  useEffect(() => {
+    setDraftKey(tavilyApiKey);
+    setTestResult(null);
+  }, [tavilyApiKey]);
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    const result = await testTavilyConnection(draftKey.trim());
+    setTestResult({ ok: result.ok, msg: result.ok ? 'Connected!' : result.error || 'Failed' });
+    setTesting(false);
+  };
+
+  const handleSave = () => {
+    if (draftKey.trim() !== tavilyApiKey) {
+      setConfirmUpdate(true);
+    }
+  };
+
+  const confirmSave = () => {
+    setTavilyApiKey(draftKey.trim());
+    setConfirmUpdate(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      <GlassCard className="p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Search className="w-4 h-4 text-teal-400/60" />
+          <h3 className="text-sm font-medium text-white/70">Tavily API Key</h3>
+        </div>
+        <p className="text-[11px] text-white/30 leading-relaxed">
+          Required for Deep Research. Enables web search with AI-optimized results.
+        </p>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-white/40">API Key</label>
+          <div className="relative">
+            <input
+              type={showKey ? 'text' : 'password'}
+              value={draftKey}
+              onChange={(e) => { setDraftKey(e.target.value); setTestResult(null); }}
+              placeholder="tvly-..."
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 pr-10 text-sm text-white/80 placeholder-white/20 outline-none focus:border-teal-400/30 transition-colors"
+            />
+            <button
+              type="button"
+              onClick={() => setShowKey(!showKey)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors cursor-pointer"
+            >
+              {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <GlassButton
+            onClick={handleTest}
+            disabled={testing || !draftKey.trim()}
+            size="sm"
+            className="flex items-center gap-1.5"
+          >
+            <Zap className={`w-3.5 h-3.5 ${testing ? 'animate-pulse' : ''}`} />
+            {testing ? 'Testing...' : 'Test'}
+          </GlassButton>
+          <GlassButton onClick={handleSave} disabled={draftKey.trim() === tavilyApiKey}>
+            Save
+          </GlassButton>
+          {tavilyApiKey && !testResult && (
+            <span className="text-[10px] text-teal-400/40">Key configured</span>
+          )}
+        </div>
+        {testResult?.msg && (
+          <div className={`flex items-center gap-2 text-xs ${testResult.ok ? 'text-teal-400' : 'text-red-400'}`}>
+            {testResult.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+            {testResult.msg}
+          </div>
+        )}
+        <a
+          href="https://tavily.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-[10px] text-white/20 hover:text-white/40 transition-colors"
+        >
+          Get a free API key at tavily.com <ExternalLink className="w-3 h-3" />
+        </a>
+      </GlassCard>
+
+      <ConfirmModal
+        isOpen={confirmUpdate}
+        onClose={() => setConfirmUpdate(false)}
+        onConfirm={confirmSave}
+        title="Update Tavily API Key?"
+        message="This will replace your current Tavily API key used for Deep Research."
+        confirmLabel="Update Key"
+      />
     </div>
   );
 }

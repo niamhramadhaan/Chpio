@@ -14,6 +14,7 @@ interface SettingsState {
   mainProviderId: string;
   wallpaper: string;
   user: UserProfile;
+  tavilyApiKey: string;
 
   setProviderKey: (id: string, key: string) => void;
   setProviderEnabled: (id: string, enabled: boolean) => void;
@@ -28,6 +29,7 @@ interface SettingsState {
   setMainProvider: (id: string) => void;
   setWallpaper: (url: string) => void;
   setUser: (user: UserProfile) => void;
+  setTavilyApiKey: (key: string) => void;
   loadSettings: () => void;
   autoSyncProviders: () => Promise<void>;
 }
@@ -79,6 +81,7 @@ function loadFromStorage(): Partial<SettingsState> {
       mainProviderId: data.mainProviderId || 'openrouter',
       wallpaper: data.wallpaper || DEFAULT_WALLPAPER,
       user: { ...defaultUser, ...data.user },
+      tavilyApiKey: data.tavilyApiKey || '',
     };
   } catch {
     return {};
@@ -87,7 +90,7 @@ function loadFromStorage(): Partial<SettingsState> {
 
 let settingsSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-function saveToStorage(state: Pick<SettingsState, 'providers' | 'defaultModelId' | 'fallbackModelId' | 'mainProviderId' | 'wallpaper' | 'user'>) {
+function saveToStorage(state: Pick<SettingsState, 'providers' | 'defaultModelId' | 'fallbackModelId' | 'mainProviderId' | 'wallpaper' | 'user' | 'tavilyApiKey'>) {
   if (settingsSaveTimer) clearTimeout(settingsSaveTimer);
   settingsSaveTimer = setTimeout(() => {
     localStorage.setItem(
@@ -99,6 +102,7 @@ function saveToStorage(state: Pick<SettingsState, 'providers' | 'defaultModelId'
         mainProviderId: state.mainProviderId,
         wallpaper: state.wallpaper,
         user: state.user,
+        tavilyApiKey: state.tavilyApiKey,
       })
     );
   }, 300);
@@ -112,6 +116,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   mainProviderId: 'openrouter',
   wallpaper: DEFAULT_WALLPAPER,
   user: defaultUser,
+  tavilyApiKey: '',
 
   setProviderKey: (id, key) => {
     const providers = get().providers.map((p) =>
@@ -119,7 +124,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     );
     set({ providers });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user, tavilyApiKey: st.tavilyApiKey });
   },
 
   setProviderEnabled: (id, enabled) => {
@@ -129,7 +134,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     });
     set({ providers });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user, tavilyApiKey: st.tavilyApiKey });
   },
 
   setProviderModels: (id, models) => {
@@ -138,7 +143,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     );
     set({ providers });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user, tavilyApiKey: st.tavilyApiKey });
   },
 
   setProviderSynced: (id, ts) => {
@@ -147,7 +152,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     );
     set({ providers });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user, tavilyApiKey: st.tavilyApiKey });
   },
 
   setProviderBaseUrl: (id, url) => {
@@ -156,7 +161,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     );
     set({ providers });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user, tavilyApiKey: st.tavilyApiKey });
   },
 
   resetProviderBaseUrl: (id) => {
@@ -165,7 +170,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     );
     set({ providers });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user, tavilyApiKey: st.tavilyApiKey });
   },
 
   toggleFavoriteModel: (providerId, modelId) => {
@@ -182,19 +187,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     });
     set({ providers });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user, tavilyApiKey: st.tavilyApiKey });
   },
 
   setDefaultModel: (id) => {
     set({ defaultModelId: id });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: id, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: id, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user, tavilyApiKey: st.tavilyApiKey });
   },
 
   setFallbackModel: (id) => {
     set({ fallbackModelId: id });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: id, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: id, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user, tavilyApiKey: st.tavilyApiKey });
   },
 
   setSelectedModel: (id) => {
@@ -204,19 +209,25 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   setMainProvider: (id) => {
     set({ mainProviderId: id });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: id, wallpaper: st.wallpaper, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: id, wallpaper: st.wallpaper, user: st.user, tavilyApiKey: st.tavilyApiKey });
   },
 
   setWallpaper: (url) => {
     set({ wallpaper: url });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: url, user: st.user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: url, user: st.user, tavilyApiKey: st.tavilyApiKey });
   },
 
   setUser: (user) => {
     set({ user });
     const st = get();
-    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user });
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user, tavilyApiKey: st.tavilyApiKey });
+  },
+
+  setTavilyApiKey: (key) => {
+    set({ tavilyApiKey: key });
+    const st = get();
+    saveToStorage({ providers: st.providers, defaultModelId: st.defaultModelId, fallbackModelId: st.fallbackModelId, mainProviderId: st.mainProviderId, wallpaper: st.wallpaper, user: st.user, tavilyApiKey: key });
   },
 
   loadSettings: () => {
