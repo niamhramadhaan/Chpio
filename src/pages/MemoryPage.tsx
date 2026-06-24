@@ -2,17 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Brain, Plus, Search, X, Trash2, Pencil } from 'lucide-react';
 import { useMemoryStore } from '../store/memoryStore';
-
-function relativeTime(ts: number) {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d`;
-}
+import { relativeTime } from '../utils/relativeTime';
 
 const TAG_COLORS = [
   'bg-teal-400',
@@ -65,6 +55,7 @@ function MemoryStreamItem({ memory, isDimmed }: {
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [editTags, setEditTags] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const startEdit = () => {
     setEditContent(memory.content);
@@ -78,6 +69,15 @@ function MemoryStreamItem({ memory, isDimmed }: {
       updateMemory(memory.id, { content: editContent, tags });
     }
     setEditing(false);
+  };
+
+  const handleDeleteConfirm = () => {
+    deleteMemory(memory.id);
+    setConfirmingDelete(false);
+  };
+
+  const handleDeleteCancel = () => {
+    setConfirmingDelete(false);
   };
 
   const dotColor = memory.tags.length > 0 ? getTagColor(memory.tags[0]) : 'bg-white/20';
@@ -95,7 +95,7 @@ function MemoryStreamItem({ memory, isDimmed }: {
         {/* Time label + connector */}
         <div className="flex items-center gap-2 mb-1">
           <span className="text-[10px] text-white/20 font-mono shrink-0">
-            {relativeTime(memory.updatedAt)}
+            {relativeTime(memory.updatedAt, true)}
           </span>
           <div className="flex-1 h-px bg-white/5" />
         </div>
@@ -186,7 +186,7 @@ function MemoryStreamItem({ memory, isDimmed }: {
                 <Pencil className="w-2.5 h-2.5" />
               </button>
               <button
-                onClick={() => deleteMemory(memory.id)}
+                onClick={() => setConfirmingDelete(true)}
                 className="p-1 rounded-md text-white/30 hover:text-red-400 hover:bg-white/5 transition-all cursor-pointer"
                 title="Delete"
                 aria-label="Delete memory"
@@ -195,6 +195,25 @@ function MemoryStreamItem({ memory, isDimmed }: {
               </button>
             </div>
           </>
+        )}
+
+        {/* Delete confirmation */}
+        {confirmingDelete && (
+          <div className="flex items-center gap-2 mt-2 p-2 rounded-lg bg-red-400/10 border border-red-400/20">
+            <p className="text-[11px] text-red-400 flex-1">Delete this memory?</p>
+            <button
+              onClick={handleDeleteConfirm}
+              className="px-2 py-0.5 rounded bg-red-400/20 text-red-400 text-[10px] hover:bg-red-400/30 transition-colors cursor-pointer"
+            >
+              Delete
+            </button>
+            <button
+              onClick={handleDeleteCancel}
+              className="px-2 py-0.5 rounded text-white/40 hover:text-white/60 hover:bg-white/5 text-[10px] transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+          </div>
         )}
       </div>
     </div>

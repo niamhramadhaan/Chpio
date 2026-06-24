@@ -1,14 +1,15 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, convertMillimetersToTwip } from 'docx';
-import { saveAs } from 'file-saver';
-
 interface ExportOptions {
   title: string;
   content: string;
 }
 
 export async function exportToDocx({ title, content }: ExportOptions): Promise<void> {
+  const docx = await import('docx');
+  const { saveAs } = await import('file-saver');
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel, convertMillimetersToTwip } = docx;
+
   const lines = content.split('\n');
-  const paragraphs: Paragraph[] = [];
+  const paragraphs: InstanceType<typeof Paragraph>[] = [];
 
   for (const line of lines) {
     if (line.startsWith('# ')) {
@@ -67,7 +68,7 @@ export async function exportToDocx({ title, content }: ExportOptions): Promise<v
         })
       );
     } else {
-      const children: TextRun[] = [];
+      const children: InstanceType<typeof TextRun>[] = [];
       let remaining = line;
 
       while (remaining.length > 0) {
@@ -246,7 +247,8 @@ function processInlineMarkdown(text: string): string {
   return result;
 }
 
-export function downloadHtml({ title, content }: ExportOptions): void {
+export async function downloadHtml({ title, content }: ExportOptions): Promise<void> {
+  const { saveAs } = await import('file-saver');
   const html = exportToHtml({ title, content });
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   saveAs(blob, `${title || 'document'}.html`);

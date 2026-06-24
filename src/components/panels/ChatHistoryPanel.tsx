@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Search, MessageSquare, Archive, ArchiveRestore, Trash2, FolderKanban, Gamepad2, ArrowLeft, Lightbulb, FileText, Filter, Check, TextSearch, X, Star } from 'lucide-react';
+import { Plus, Search, MessageSquare, Archive, ArchiveRestore, Trash2, FolderKanban, Gamepad2, ArrowLeft, Lightbulb, FileText, Filter, Check, TextSearch, X, Star, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useChatStore } from '../../store/chatStore';
 import { useProjectStore } from '../../store/projectStore';
@@ -13,7 +13,7 @@ type ProjectView = 'list' | 'inside';
 
 export function ChatHistoryPanel() {
   const { sessions, activeSessionId, setActiveSession, createSession, archiveSession, unarchiveSession, deleteSession } = useChatStore();
-  const { projects, activeProjectId, setActiveProject, createProject, updateProject } = useProjectStore();
+  const { projects, activeProjectId, setActiveProject, createProject, updateProject, deleteProject } = useProjectStore();
   const defaultModelId = useSettingsStore((s) => s.defaultModelId);
   const notes = useNotesStore((s) => s.notes);
   const folders = useNotesStore((s) => s.folders);
@@ -26,11 +26,14 @@ export function ChatHistoryPanel() {
   const [inlineConfirm, setInlineConfirm] = useState<{ id: string; action: 'archive' | 'delete' } | null>(null);
   const [editingSkills, setEditingSkills] = useState(false);
   const [editingInstructions, setEditingInstructions] = useState(false);
+  const [editingDescription, setEditingDescription] = useState(false);
   const [skillsDraft, setSkillsDraft] = useState('');
   const [instructionsDraft, setInstructionsDraft] = useState('');
+  const [descriptionDraft, setDescriptionDraft] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const filterTriggerRef = useRef<HTMLButtonElement>(null);
 
   const activeProject = projects.find((p) => p.id === activeProjectId);
@@ -91,34 +94,49 @@ export function ChatHistoryPanel() {
     );
   };
 
+
+  const handleDeleteProject = () => {
+    if (!activeProjectId) return;
+    deleteProject(activeProjectId);
+    setActiveProject(null);
+    setProjectView('list');
+    setDeleteConfirm(false);
+  };
+
   return (
     <div className="flex flex-col h-full">
-      {/* Tab Switcher */}
+      {/* Accordion Header */}
       <div className="p-3 border-b border-white/5">
-        <div className="flex gap-1 p-1 rounded-xl bg-white/5">
-          <button
-            onClick={() => { setTab('playground'); setShowArchived(false); }}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              tab === 'playground'
-                ? 'bg-teal-400/15 text-teal-400'
-                : 'text-white/40 hover:text-white/60 hover:bg-white/5'
-            }`}
-          >
-            <Gamepad2 className="w-3.5 h-3.5" />
-            Playground
-          </button>
-          <button
-            onClick={() => { setTab('projects'); setProjectView('list'); setActiveProject(null); }}
-            className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-              tab === 'projects'
-                ? 'bg-teal-400/15 text-teal-400'
-                : 'text-white/40 hover:text-white/60 hover:bg-white/5'
-            }`}
-          >
-            <FolderKanban className="w-3.5 h-3.5" />
-            Projects
-          </button>
-        </div>
+        <button
+          onClick={() => {
+            if (tab === 'playground') {
+              setTab('projects');
+              setProjectView('list');
+              setActiveProject(null);
+            } else {
+              setTab('playground');
+              setShowArchived(false);
+            }
+          }}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+        >
+          <div className="flex items-center gap-2">
+            {tab === 'playground' ? (
+              <>
+                <Gamepad2 className="w-4 h-4 text-teal-400" />
+                <span className="text-sm font-medium text-white">Playground</span>
+              </>
+            ) : (
+              <>
+                <FolderKanban className="w-4 h-4 text-teal-400" />
+                <span className="text-sm font-medium text-white">
+                  {activeProject ? activeProject.name : 'Projects'}
+                </span>
+              </>
+            )}
+          </div>
+          <ChevronDown className={`w-4 h-4 text-white/30 transition-transform ${tab === 'projects' ? 'rotate-180' : ''}`} />
+        </button>
       </div>
 
       {/* New Chat Button */}
@@ -173,6 +191,7 @@ export function ChatHistoryPanel() {
                       onDelete={() => setInlineConfirm({ id: session.id, action: 'delete' })}
                       onConfirm={handleConfirm}
                       onCancelConfirm={() => setInlineConfirm(null)}
+                      projects={projects}
                     />
                   ))}
                 </>
@@ -192,6 +211,7 @@ export function ChatHistoryPanel() {
                       onArchive={() => setInlineConfirm({ id: session.id, action: 'archive' })}
                       onConfirm={handleConfirm}
                       onCancelConfirm={() => setInlineConfirm(null)}
+                      projects={projects}
                     />
                   ))}
                 </>
@@ -245,17 +265,59 @@ export function ChatHistoryPanel() {
               exit={{ opacity: 0 }}
               className="space-y-3"
             >
-              {/* Back Button */}
-              <button
-                onClick={() => { setActiveProject(null); setProjectView('list'); }}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/40 hover:text-white/60 transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                Back to Projects
-              </button>
+              {/* Back Button + Actions */}
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => { setActiveProject(null); setProjectView('list'); }}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-white/40 hover:text-white/60 transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  Back
+                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setDeleteConfirm(true)}
+                    className="p-1.5 rounded-lg text-red-400/40 hover:text-red-400 hover:bg-red-400/10 transition-colors cursor-pointer"
+                    title="Delete project"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Delete Confirmation */}
+              {deleteConfirm && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-400/10 border border-red-400/20">
+                  <span className="text-xs text-red-400/70 flex-1">Delete this project?</span>
+                  <button onClick={handleDeleteProject} className="px-2 py-1 rounded text-xs bg-red-400/20 text-red-400 hover:bg-red-400/30 cursor-pointer">Delete</button>
+                  <button onClick={() => setDeleteConfirm(false)} className="px-2 py-1 rounded text-xs text-white/40 hover:text-white/60 cursor-pointer">Cancel</button>
+                </div>
+              )}
+
+              {/* Description */}
+              <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/5">
+                {editingDescription ? (
+                  <textarea
+                    autoFocus
+                    value={descriptionDraft}
+                    onChange={(e) => setDescriptionDraft(e.target.value)}
+                    onBlur={() => { if (activeProjectId) updateProject(activeProjectId, { description: descriptionDraft }); setEditingDescription(false); }}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setEditingDescription(false); }}
+                    placeholder="What is this project about?"
+                    className="w-full bg-transparent text-xs text-white/70 outline-none resize-none min-h-[32px] placeholder-white/20"
+                  />
+                ) : (
+                  <button
+                    onClick={() => { if (activeProject) { setDescriptionDraft(activeProject.description); setEditingDescription(true); } }}
+                    className="w-full text-left text-xs text-white/40 hover:text-white/60 transition-colors cursor-pointer"
+                  >
+                    {activeProject.description || 'Add a description...'}
+                  </button>
+                )}
+              </div>
 
               {/* Pinned Cards */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-2">
                 <div className="p-3 rounded-xl bg-white/5 border border-white/5">
                   <div className="flex items-center gap-1.5 mb-2">
                     <Lightbulb className="w-3.5 h-3.5 text-teal-400" />
@@ -279,12 +341,29 @@ export function ChatHistoryPanel() {
                       {activeProject.skills || 'Click to add skills...'}
                     </button>
                   )}
+                  <SkillTagSelector
+                    currentSkills={activeProject?.skills || ''}
+                    onToggle={(skill) => {
+                      const current = activeProject?.skills || '';
+                      const skills = current.split(',').map(s => s.trim()).filter(Boolean);
+                      const idx = skills.indexOf(skill);
+                      const updated = idx >= 0
+                        ? skills.filter(s => s !== skill).join(', ')
+                        : [...skills, skill].join(', ');
+                      if (activeProjectId) {
+                        updateProject(activeProjectId, { skills: updated });
+                        setSkillsDraft(updated);
+                      }
+                    }}
+                  />
                 </div>
 
                 <div className="p-3 rounded-xl bg-white/5 border border-white/5">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <FileText className="w-3.5 h-3.5 text-teal-400" />
-                    <span className="text-xs font-medium text-white/50">Instructions</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="w-3.5 h-3.5 text-teal-400" />
+                      <span className="text-xs font-medium text-white/50">Instructions</span>
+                    </div>
                   </div>
                   {editingInstructions ? (
                     <textarea
@@ -322,6 +401,7 @@ export function ChatHistoryPanel() {
                   onArchive={() => setInlineConfirm({ id: session.id, action: 'archive' })}
                   onConfirm={handleConfirm}
                   onCancelConfirm={() => setInlineConfirm(null)}
+                  projects={projects}
                 />
               ))}
             </motion.div>
@@ -474,8 +554,9 @@ function SessionItem({
   onDelete,
   onConfirm,
   onCancelConfirm,
+  projects,
 }: {
-  session: { id: string; title: string; updatedAt: number; starred?: boolean };
+  session: { id: string; title: string; updatedAt: number; starred?: boolean; projectId?: string };
   isActive: boolean;
   onSelect: () => void;
   isArchived?: boolean;
@@ -485,7 +566,10 @@ function SessionItem({
   onDelete?: () => void;
   onConfirm: () => void;
   onCancelConfirm: () => void;
+  projects?: { id: string; name: string }[];
 }) {
+  const moveSessionToProject = useChatStore((s) => s.moveSessionToProject);
+  const [showProjectMenu, setShowProjectMenu] = useState(false);
   const isConfirming = inlineConfirm?.id === session.id;
 
   return (
@@ -534,7 +618,49 @@ function SessionItem({
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0 relative">
+          {projects && projects.length > 0 && !isArchived && (
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowProjectMenu(!showProjectMenu); }}
+                className="opacity-0 group-hover:opacity-100 text-white/30 hover:text-teal-400 transition-all cursor-pointer p-1"
+                title="Move to project"
+              >
+                <FolderKanban className="w-3.5 h-3.5" />
+              </button>
+              {showProjectMenu && (
+                <div className="absolute right-0 top-full mt-1 w-36 bg-[#1A201F] border border-white/10 rounded-lg shadow-2xl overflow-hidden z-50">
+                  <div className="p-1">
+                    {session.projectId && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveSessionToProject(session.id, undefined);
+                          setShowProjectMenu(false);
+                        }}
+                        className="w-full text-left px-2 py-1.5 text-[10px] text-white/50 hover:text-white hover:bg-white/5 rounded transition-colors cursor-pointer"
+                      >
+                        Remove from project
+                      </button>
+                    )}
+                    {projects.filter((p) => p.id !== session.projectId).map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveSessionToProject(session.id, p.id);
+                          setShowProjectMenu(false);
+                        }}
+                        className="w-full text-left px-2 py-1.5 text-[10px] text-white/50 hover:text-white hover:bg-white/5 rounded transition-colors cursor-pointer"
+                      >
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {isArchived && onDelete && (
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(); }}
@@ -554,6 +680,105 @@ function SessionItem({
             {isArchived ? <ArchiveRestore className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
           </button>
         </div>
+      )}
+    </div>
+  );
+}
+
+const SKILL_CATEGORIES = [
+  {
+    label: 'Lang',
+    skills: ['JavaScript', 'TypeScript', 'Python', 'Rust', 'Go', 'Java', 'C++', 'Swift', 'Kotlin'],
+  },
+  {
+    label: 'Frontend',
+    skills: ['React', 'Vue', 'Svelte', 'Angular', 'Next.js', 'Tailwind CSS', 'HTML/CSS'],
+  },
+  {
+    label: 'Backend',
+    skills: ['Node.js', 'Express', 'FastAPI', 'Django', 'Spring Boot', 'GraphQL'],
+  },
+  {
+    label: 'Database',
+    skills: ['PostgreSQL', 'MongoDB', 'Redis', 'SQLite', 'Supabase', 'Firebase'],
+  },
+  {
+    label: 'DevOps',
+    skills: ['Docker', 'Kubernetes', 'AWS', 'Vercel', 'CI/CD', 'Git'],
+  },
+  {
+    label: 'AI/ML',
+    skills: ['PyTorch', 'TensorFlow', 'LangChain', 'OpenAI API', 'RAG'],
+  },
+  {
+    label: 'Mobile',
+    skills: ['React Native', 'Flutter', 'iOS', 'Android'],
+  },
+  {
+    label: 'Other',
+    skills: ['REST APIs', 'WebSocket', 'Authentication', 'Testing', 'Security'],
+  },
+];
+
+function SkillTagSelector({
+  currentSkills,
+  onToggle,
+}: {
+  currentSkills: string;
+  onToggle: (skill: string) => void;
+}) {
+  const [filter, setFilter] = useState('');
+  const selected = currentSkills.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+
+  const filteredCategories = useMemo(() => {
+    if (!filter.trim()) return SKILL_CATEGORIES;
+    const q = filter.toLowerCase();
+    return SKILL_CATEGORIES
+      .map((cat) => ({
+        ...cat,
+        skills: cat.skills.filter(
+          (s) => s.toLowerCase().includes(q) || cat.label.toLowerCase().includes(q)
+        ),
+      }))
+      .filter((cat) => cat.skills.length > 0);
+  }, [filter]);
+
+  return (
+    <div className="mt-2 pt-2 border-t border-white/5">
+      <input
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+        placeholder="Type to filter skills (e.g. devops, frontend)..."
+        className="w-full px-2 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white/70 outline-none placeholder-white/20 focus:border-teal-400/30 transition-colors mb-2"
+      />
+      {filteredCategories.length > 0 ? (
+        <div className="grid grid-cols-4 gap-x-2 gap-y-1.5">
+          {filteredCategories.map((cat) => (
+            <div key={cat.label}>
+              <div className="text-[9px] text-white/25 font-medium mb-0.5">{cat.label}</div>
+              <div className="flex flex-wrap gap-0.5">
+                {cat.skills.map((skill) => {
+                  const isActive = selected.includes(skill.toLowerCase());
+                  return (
+                    <button
+                      key={skill}
+                      onClick={() => onToggle(skill)}
+                      className={`px-1.5 py-0.5 rounded text-[9px] transition-colors cursor-pointer ${
+                        isActive
+                          ? 'bg-teal-400/20 text-teal-400 border border-teal-400/30'
+                          : 'bg-white/5 text-white/30 border border-transparent hover:text-white/50 hover:bg-white/10'
+                      }`}
+                    >
+                      {skill}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-[10px] text-white/20 text-center py-2">No matching skills</p>
       )}
     </div>
   );

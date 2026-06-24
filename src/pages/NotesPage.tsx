@@ -22,22 +22,14 @@ import {
   FileText,
   Copy,
   FolderInput,
+  MessageSquare,
 } from 'lucide-react';
 import { useNotesStore } from '../store/notesStore';
+import { useChatStore } from '../store/chatStore';
 import { PinItemBase } from '../components/ui/pin-item-base';
 import { ContextMenu } from '../components/ui/ContextMenu';
+import { relativeTime } from '../utils/relativeTime';
 import type { Note, NoteFolder } from '../types';
-
-function relativeTime(ts: number) {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
 
 /* ── Folder Card — Pocket Stack ── */
 function FolderCard({
@@ -723,6 +715,12 @@ export default function NotesPage() {
   const getArchivedFolders = useNotesStore((s) => s.getArchivedFolders);
   const getNoteCount = useNotesStore((s) => s.getNoteCount);
 
+  const activeSessionId = useChatStore((s) => s.activeSessionId);
+  const activeSession = useChatStore((s) => s.sessions.find((sess) => sess.id === s.activeSessionId));
+  const sessionActiveNoteId = activeSession?.activeNoteId;
+  const setActiveNoteForSession = useChatStore((s) => s.setActiveNote);
+  const clearActiveNoteForSession = useChatStore((s) => s.clearActiveNote);
+
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [renamingFolderId, setRenamingFolderId] = useState<string | null>(null);
@@ -1106,6 +1104,25 @@ export default function NotesPage() {
                   <Pin className="w-3 h-3" />
                   <span>{activeNote.pinned ? 'Pinned' : 'Pin'}</span>
                 </button>
+                {activeSessionId && (
+                  <button
+                    onClick={() => {
+                      if (sessionActiveNoteId === activeNote.id) {
+                        clearActiveNoteForSession(activeSessionId);
+                      } else {
+                        setActiveNoteForSession(activeSessionId, activeNote.id);
+                      }
+                    }}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] transition-all cursor-pointer shrink-0 ${
+                      sessionActiveNoteId === activeNote.id
+                        ? 'text-violet-400 bg-violet-400/10'
+                        : 'text-white/25 hover:text-violet-400 hover:bg-white/5'
+                    }`}
+                  >
+                    <MessageSquare className="w-3 h-3" />
+                    <span>{sessionActiveNoteId === activeNote.id ? 'Active in chat' : 'Pin to chat'}</span>
+                  </button>
+                )}
                 <button
                   onClick={() => setTasksExpanded(!tasksExpanded)}
                   className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] text-white/25 hover:text-white/50 hover:bg-white/5 transition-all cursor-pointer shrink-0"

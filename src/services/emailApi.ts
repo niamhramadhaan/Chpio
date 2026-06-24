@@ -82,22 +82,40 @@ export async function sendEmail(
 
 export function connectSSE(accountId: string, onEvent: (data: any) => void): () => void {
   const baseUrl = getBaseUrl();
-  const es = new EventSource(`${baseUrl}/api/accounts/${accountId}/events`);
+  let currentEs: EventSource | null = new EventSource(`${baseUrl}/api/accounts/${accountId}/events`);
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
-  es.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      onEvent(data);
-    } catch { /* ignore parse errors */ }
+  const cleanup = () => {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    if (currentEs) {
+      currentEs.close();
+      currentEs = null;
+    }
   };
 
-  es.onerror = () => {
-    es.close();
-    // Reconnect after 5 seconds
-    setTimeout(() => connectSSE(accountId, onEvent), 5000);
+  const connect = (es: EventSource) => {
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        onEvent(data);
+      } catch { /* ignore parse errors */ }
+    };
+
+    es.onerror = () => {
+      es.close();
+      reconnectTimer = setTimeout(() => {
+        const newEs = new EventSource(`${baseUrl}/api/accounts/${accountId}/events`);
+        currentEs = newEs;
+        connect(newEs);
+      }, 5000);
+    };
   };
 
-  return () => es.close();
+  connect(currentEs);
+  return cleanup;
 }
 
 export async function downloadAttachment(accountId: string, folder: string, uid: number, partId: string): Promise<Blob> {

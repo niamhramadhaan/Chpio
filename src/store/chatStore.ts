@@ -51,6 +51,10 @@ interface ChatState {
   setAttachedDocs: (sessionId: string, docIds: string[]) => void;
   editMessage: (sessionId: string, messageId: string, content: string) => void;
   toggleStar: (id: string) => void;
+  setActiveNote: (sessionId: string, noteId: string) => void;
+  clearActiveNote: (sessionId: string) => void;
+  setGoal: (sessionId: string, goal: string, steps?: string[]) => void;
+  clearGoal: (sessionId: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -98,10 +102,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   updateLastAssistantMessage: (sessionId, content) => {
     set({ streamingContent: content, streamingSessionId: sessionId });
+    // Also persist to session messages so content survives navigation
+    const sessions = get().sessions.map((s) => {
+      if (s.id !== sessionId) return s;
+      const messages = [...s.messages];
+      const last = messages[messages.length - 1];
+      if (last && last.role === 'assistant') {
+        messages[messages.length - 1] = { ...last, content };
+      }
+      return { ...s, messages };
+    });
+    set({ sessions });
   },
 
   updateLastAssistantThinking: (sessionId, thinking) => {
     set({ streamingThinking: thinking, streamingSessionId: sessionId });
+    const sessions = get().sessions.map((s) => {
+      if (s.id !== sessionId) return s;
+      const messages = [...s.messages];
+      const last = messages[messages.length - 1];
+      if (last && last.role === 'assistant') {
+        messages[messages.length - 1] = { ...last, thinking };
+      }
+      return { ...s, messages };
+    });
+    set({ sessions });
   },
 
   setStreaming: (streaming) => {
@@ -237,6 +262,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
   toggleStar: (id) => {
     const sessions = get().sessions.map((s) =>
       s.id === id ? { ...s, starred: !s.starred } : s
+    );
+    saveSessions(sessions);
+    set({ sessions });
+  },
+
+  setActiveNote: (sessionId, noteId) => {
+    const sessions = get().sessions.map((s) =>
+      s.id === sessionId ? { ...s, activeNoteId: noteId, updatedAt: Date.now() } : s
+    );
+    saveSessions(sessions);
+    set({ sessions });
+  },
+
+  clearActiveNote: (sessionId) => {
+    const sessions = get().sessions.map((s) =>
+      s.id === sessionId ? { ...s, activeNoteId: undefined, updatedAt: Date.now() } : s
+    );
+    saveSessions(sessions);
+    set({ sessions });
+  },
+
+  setGoal: (sessionId, goal, steps) => {
+    const sessions = get().sessions.map((s) =>
+      s.id === sessionId ? { ...s, goal, goalSteps: steps || [], updatedAt: Date.now() } : s
+    );
+    saveSessions(sessions);
+    set({ sessions });
+  },
+
+  clearGoal: (sessionId) => {
+    const sessions = get().sessions.map((s) =>
+      s.id === sessionId ? { ...s, goal: undefined, goalSteps: undefined, updatedAt: Date.now() } : s
     );
     saveSessions(sessions);
     set({ sessions });

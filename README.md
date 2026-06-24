@@ -2,7 +2,7 @@
 
 > Your self-hosted AI workspace (ﾉ◕ヮ◕)ﾉ*:・ﾟ✧
 
-Self-hosted AI workspace. Chat with any local model or API, organize with projects, take notes, manage email, and do deep research — all local-first, privacy-first.
+Self-hosted AI workspace. Chat with any local model or API, organize with projects, take notes, manage email, generate images, and do deep research — all local-first, privacy-first.
 
 ---
 
@@ -16,8 +16,29 @@ Self-hosted AI workspace. Chat with any local model or API, organize with projec
 - **Star/favorite** important chats ⭐
 - **In-chat search** (Ctrl+F) 🔍
 - Right-click context menus
-- File attachments
+- File attachments (text, PDF, DOCX, images)
 - **Save to Memory** — extract key facts from any message
+- **Interactive options** — AI gives clickable choices when unsure
+
+### Image Generation 🎨
+- **AI image generation** canvas in the bottom dock
+- Support for **OpenAI** (DALL-E, gpt-image-1) and **Together AI** (FLUX, SDXL)
+- **Custom endpoint** — connect your own OpenAI-compatible server
+- Image grid with download, delete, copy prompt, and send-to-chat
+- Stylized provider/model selection dropdowns
+
+### Local AI (Browser) 🧠
+- Run models **directly in your browser** — no API key, no server, no install
+- Powered by **WebLLM** with WebGPU acceleration
+- Requires Chrome or Edge 113+
+- Models download on first use (~0.7-2 GB) and are cached locally
+- Supported: Llama 3.2, Phi-3.5, Qwen2.5, Gemma 2, SmolLM2, and more
+
+### Projects 📁
+- Organize chats into projects with **skills** and **instructions**
+- **Quick skill setup** — tag selector with 8 categories
+- AI-powered project setup
+- Project context injected into AI conversations
 
 ### Notes & Tasks 📝
 - Pocket card folder system
@@ -102,6 +123,12 @@ npm run dev
 4. Add your email account (IMAP/SMTP credentials)
 5. Open **Email** from the bottom dock!
 
+### Image Generation Setup
+1. Go to **Settings → Image Gen**
+2. Enable **OpenAI** or **Together AI** and add your API key (or configure a custom endpoint)
+3. Open **Image Gen** from the bottom dock (⋯ menu)
+4. Type a prompt and click Generate!
+
 ---
 
 ## 🎨 Tech Stack
@@ -121,6 +148,9 @@ npm run dev
 | 📨 nodemailer | SMTP Sending |
 | 📮 postal-mime | MIME Parsing |
 | 💾 better-sqlite3 | Email Cache |
+| 🧠 WebLLM | Local AI (Browser) |
+| 📄 LiteParse | PDF Parsing (WASM) |
+| 📝 Mammoth | DOCX Parsing |
 
 ---
 

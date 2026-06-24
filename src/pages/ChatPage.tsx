@@ -24,6 +24,8 @@ import {
   X,
   Star,
   AlertCircle,
+  Sparkles,
+  StickyNote,
 } from 'lucide-react';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import { useChatStore } from '../store/chatStore';
@@ -35,9 +37,14 @@ import { useDocsStore } from '../store/docsStore';
 import { useMemoryStore } from '../store/memoryStore';
 import { streamChat } from '../services/providers';
 import { getActiveModels, stripProviderPrefix } from '../utils/models';
+import { resolveModelProvider } from '../utils/resolveModel';
 import { buildDocContextSystemMessage } from '../utils/docContext';
 import { parseDocUpdates, executeDocUpdates, stripDocUpdates, formatDocUpdateSummary } from '../utils/parseDocUpdates';
 import { buildMemoryContextSystemMessage, summarizeForMemory } from '../utils/memoryContext';
+import { useNotesStore } from '../store/notesStore';
+import { buildChpioSystemMessage } from '../utils/chpioContext';
+import { buildProjectSystemMessage } from '../utils/projectContext';
+import { parseInteractiveOptions, removeOptionsFromContent } from '../utils/parseOptions';
 import { exportChatAsMd, exportChatAsTxt, copyChatToClipboard, downloadFile, getExportFilename } from '../utils/exportChat';
 import { ChpioAvatar } from '../components/ChpioAvatar';
 
@@ -51,6 +58,10 @@ function parseChatError(e: unknown): string {
   if (msg.includes('402')) return 'Payment required. Add credits to your provider account.';
   if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('Network request failed'))
     return 'Could not reach provider. Check your connection.';
+  if (msg.includes('WebGPU')) return 'WebGPU not available. Use Chrome or Edge 113+ with GPU enabled.';
+  if (msg.includes('out of memory') || msg.includes('device lost') || msg.includes('GPU'))
+    return 'GPU ran out of memory. Try a smaller model or close other GPU-heavy tabs.';
+  if (msg.includes('Local model error')) return msg;
   return msg;
 }
 
@@ -87,6 +98,7 @@ export function ChatPage() {
   const selectedModelId = useSettingsStore((s) => s.selectedModelId);
   const providers = useSettingsStore((s) => s.providers);
   const mainProviderId = useSettingsStore((s) => s.mainProviderId);
+  const user = useSettingsStore((s) => s.user);
 
   const models = useMemo(() => getActiveModels(providers), [providers]);
 
@@ -114,6 +126,101 @@ export function ChatPage() {
   const [searchMatchIds, setSearchMatchIds] = useState<string[]>([]);
   const [searchCurrentIdx, setSearchCurrentIdx] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const chpioMode = useAppStore((s) => s.chpioMode);
+  const toggleChpioMode = useAppStore((s) => s.toggleChpioMode);
+
+  const notes = useNotesStore((s) => s.notes);
+  const clearActiveNote = useChatStore((s) => s.clearActiveNote);
+  const activeNoteId = session?.activeNoteId;
+  const activeNote = activeNoteId ? notes.find((n) => n.id === activeNoteId) : null;
+  const [sentToNote, setSentToNote] = useState(false);
+
+  const handleSentToNote = useCallback(() => {
+    setSentToNote(true);
+    setTimeout(() => setSentToNote(false), 2000);
+  }, []);
+
+  const handleOptionClick = useCallback((text: string) => {
+    if (!session || isStreaming) return;
+    const modelId = selectedModelId || session.modelId || activeModelId;
+    if (!modelId) return;
+
+    const userMsg = {
+      id: crypto.randomUUID(),
+      role: 'user' as const,
+      content: text,
+      timestamp: Date.now(),
+    };
+    addMessage(session.id, userMsg);
+
+    const assistantMsg = {
+      id: crypto.randomUUID(),
+      role: 'assistant' as const,
+      content: '',
+      modelId,
+      timestamp: Date.now(),
+    };
+    addMessage(session.id, assistantMsg);
+    setStreaming(true);
+    const controller = new AbortController();
+    useChatStore.setState({ abortController: controller });
+
+    const doStream = async (mId: string, msgs: { role: 'user' | 'assistant' | 'system'; content: string }[]) => {
+      const { baseUrl, apiKey, providerId: pId } = resolveModelProvider(mId, models, providers);
+
+      const sessionData = useChatStore.getState().sessions.find((s) => s.id === session.id);
+      const allDocs = useDocsStore.getState().docs;
+      const sessionDocs = allDocs.filter((d) => sessionData?.attachedDocIds?.includes(d.id));
+      const docSystemMsg = sessionDocs.length > 0
+        ? buildDocContextSystemMessage(sessionDocs)
+        : 'If the user asks to write to a document, remind them to attach a document first.';
+      const { memories, activeTag } = useMemoryStore.getState();
+      const filteredMemories = activeTag ? memories.filter(m => m.tags.includes(activeTag)) : memories;
+      const memorySystemMsg = buildMemoryContextSystemMessage(filteredMemories);
+      const chpioSystemMsg = chpioMode ? buildChpioSystemMessage(user) : null;
+      const activeProject = sessionData?.projectId ? projects.find((p) => p.id === sessionData.projectId) : null;
+      const projectSystemMsg = activeProject ? buildProjectSystemMessage(activeProject) : null;
+
+      const combinedSystem = [chpioSystemMsg, projectSystemMsg, memorySystemMsg, docSystemMsg].filter(Boolean).join('\n\n');
+      const messages = combinedSystem
+        ? [{ role: 'system' as const, content: combinedSystem }, ...msgs]
+        : msgs;
+
+      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), messages, pId, controller.signal);
+      let accumulated = '';
+      let rafId: number | null = null;
+
+      const scheduleFlush = () => {
+        if (rafId !== null) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = null;
+          updateLastAssistantMessage(session.id, accumulated);
+        });
+      };
+
+      for await (const chunk of stream) {
+        if (chunk.type === 'content') {
+          accumulated += chunk.text;
+          scheduleFlush();
+        }
+      }
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      updateLastAssistantMessage(session.id, accumulated);
+    };
+
+    const chatMessages = useChatStore
+      .getState()
+      .getActiveSession()
+      ?.messages.filter((m) => m.content)
+      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })) || [];
+
+    doStream(modelId, chatMessages).catch((e) => {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      updateLastAssistantMessage(session.id, `Error: ${parseChatError(e)}`);
+    }).finally(() => {
+      setStreaming(false);
+    });
+  }, [session, isStreaming, selectedModelId, activeModelId, models, providers, projects, user, chpioMode, addMessage, setStreaming, updateLastAssistantMessage]);
 
   const getModelName = useCallback((modelId: string) =>
     models.find((m) => m.id === modelId)?.name || modelId, [models]);
@@ -244,25 +351,27 @@ export function ChatPage() {
     useChatStore.setState({ abortController: controller });
 
     const doStream = async (mId: string, msgs: { role: 'user' | 'assistant' | 'system'; content: string }[]) => {
-      const m = models.find((x) => x.id === mId);
-      const p = providers.find((x) => x.id === m?.providerId);
-      const baseUrl = p?.baseUrl || 'https://openrouter.ai/api/v1';
-      const apiKey = p?.apiKey || undefined;
+      const { baseUrl, apiKey, providerId: pId } = resolveModelProvider(mId, models, providers);
 
       const session = useChatStore.getState().sessions.find((s) => s.id === sessionId);
       const allDocs = useDocsStore.getState().docs;
       const sessionDocs = allDocs.filter((d) => session?.attachedDocIds?.includes(d.id));
-      const docSystemMsg = buildDocContextSystemMessage(sessionDocs);
+      const docSystemMsg = sessionDocs.length > 0
+        ? buildDocContextSystemMessage(sessionDocs)
+        : 'If the user asks to write to a document, remind them to attach a document first using the BookOpen icon in the input bar.';
       const { memories, activeTag } = useMemoryStore.getState();
       const filteredMemories = activeTag ? memories.filter(m => m.tags.includes(activeTag)) : memories;
       const memorySystemMsg = buildMemoryContextSystemMessage(filteredMemories);
+      const chpioSystemMsg = chpioMode ? buildChpioSystemMessage(user) : null;
+      const activeProject = session?.projectId ? projects.find((p) => p.id === session.projectId) : null;
+      const projectSystemMsg = activeProject ? buildProjectSystemMessage(activeProject) : null;
 
-      const combinedSystem = [memorySystemMsg, docSystemMsg].filter(Boolean).join('\n\n');
+      const combinedSystem = [chpioSystemMsg, projectSystemMsg, memorySystemMsg, docSystemMsg].filter(Boolean).join('\n\n');
       const messages = combinedSystem
         ? [{ role: 'system' as const, content: combinedSystem }, ...msgs]
         : msgs;
 
-      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), messages, m?.providerId, controller.signal);
+      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), messages, pId, controller.signal);
       let accumulated = '';
       let thinkingAccum = '';
       let rafId: number | null = null;
@@ -347,24 +456,26 @@ export function ChatPage() {
     useChatStore.setState({ abortController: controller });
 
     const doStream = async (mId: string, msgs: { role: 'user' | 'assistant' | 'system'; content: string }[]) => {
-      const m = models.find((x) => x.id === mId);
-      const p = providers.find((x) => x.id === m?.providerId);
-      const baseUrl = p?.baseUrl || 'https://openrouter.ai/api/v1';
-      const apiKey = p?.apiKey || undefined;
+      const { baseUrl, apiKey, providerId: pId } = resolveModelProvider(mId, models, providers);
 
       const allDocs = useDocsStore.getState().docs;
       const sessionDocs = allDocs.filter((d) => session.attachedDocIds?.includes(d.id));
-      const docSystemMsg = buildDocContextSystemMessage(sessionDocs);
+      const docSystemMsg = sessionDocs.length > 0
+        ? buildDocContextSystemMessage(sessionDocs)
+        : 'If the user asks to write to a document, remind them to attach a document first using the BookOpen icon in the input bar.';
       const { memories: mem, activeTag: tag } = useMemoryStore.getState();
       const filteredMem = tag ? mem.filter(m => m.tags.includes(tag)) : mem;
       const memorySystemMsg = buildMemoryContextSystemMessage(filteredMem);
+      const chpioSystemMsg = chpioMode ? buildChpioSystemMessage(user) : null;
+      const activeProject = session.projectId ? projects.find((p) => p.id === session.projectId) : null;
+      const projectSystemMsg = activeProject ? buildProjectSystemMessage(activeProject) : null;
 
-      const combinedSystem = [memorySystemMsg, docSystemMsg].filter(Boolean).join('\n\n');
+      const combinedSystem = [chpioSystemMsg, projectSystemMsg, memorySystemMsg, docSystemMsg].filter(Boolean).join('\n\n');
       const messages = combinedSystem
         ? [{ role: 'system' as const, content: combinedSystem }, ...msgs]
         : msgs;
 
-      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), messages, m?.providerId, controller.signal);
+      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), messages, pId, controller.signal);
       let accumulated = '';
       let thinkingAccum = '';
       let rafId: number | null = null;
@@ -421,7 +532,7 @@ export function ChatPage() {
     } finally {
       setStreaming(false);
     }
-  }, [session, isStreaming, selectedModelId, activeModelId, models, providers, replaceSessionMessages, setStreaming, updateLastAssistantMessage, updateLastAssistantThinking, fallbackModelId]);
+  }, [session, isStreaming, selectedModelId, activeModelId, models, providers, replaceSessionMessages, setStreaming, updateLastAssistantMessage, updateLastAssistantThinking, fallbackModelId, chpioMode, user]);
 
   const handleEditMessage = useCallback((msgId: string, newContent: string) => {
     if (!session) return;
@@ -445,13 +556,9 @@ export function ChatPage() {
     setRememberErrorMsgId(null);
 
     try {
-      const m = models.find((x) => x.id === activeModelId);
-      const pId = m?.providerId;
-      const p = providers.find((x) => x.id === pId);
-      const baseUrl = p?.baseUrl || 'https://openrouter.ai/api/v1';
-      const apiKey = p?.apiKey || undefined;
+      const { model, provider, baseUrl, apiKey, providerId: pId } = resolveModelProvider(activeModelId, models, providers);
 
-      if (!m || !p) {
+      if (!model || !provider) {
         setNothingToRemember(null);
         setRememberErrorText('Configure a provider first');
         setRememberErrorMsgId(msgId);
@@ -460,7 +567,7 @@ export function ChatPage() {
       }
 
       const summary = await summarizeForMemory(content, (msgs) => {
-        return streamChat(baseUrl, apiKey, stripProviderPrefix(m.id), msgs, pId);
+        return streamChat(baseUrl, apiKey, stripProviderPrefix(model.id), msgs, pId);
       });
 
       if (summary) {
@@ -548,6 +655,17 @@ export function ChatPage() {
 
               <div className="ml-auto flex items-center gap-1 relative" ref={exportRef}>
                 <button
+                  onClick={toggleChpioMode}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    chpioMode ? 'bg-purple-400/15 text-purple-400 border border-purple-400/30 chpio-active' : 'text-white/30 hover:text-white/60 hover:bg-white/5 border border-transparent'
+                  }`}
+                  title="Chpio mode"
+                  aria-label="Chpio mode"
+                  aria-pressed={chpioMode}
+                >
+                  <Sparkles className={`w-3.5 h-3.5 ${chpioMode ? 'chpio-sparkle' : ''}`} />
+                </button>
+                <button
                   onClick={() => toggleStar(session.id)}
                   className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
                     session.starred ? 'text-amber-400 hover:text-amber-300' : 'text-white/30 hover:text-white/60 hover:bg-white/5'
@@ -615,6 +733,25 @@ export function ChatPage() {
                       Export .txt
                     </button>
                   </div>
+                )}
+                {activeNote && (
+                  <button
+                    onClick={() => session && clearActiveNote(session.id)}
+                    className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      sentToNote ? 'bg-teal-400/15 text-teal-400' : 'text-teal-400/50 hover:text-teal-400 hover:bg-teal-400/10'
+                    }`}
+                    title={sentToNote ? 'Sent!' : `${activeNote.title || 'Untitled'} — click to unlink`}
+                    aria-label={sentToNote ? 'Sent to note' : `Active note: ${activeNote.title || 'Untitled'}`}
+                  >
+                    {sentToNote ? (
+                      <Check className="w-3.5 h-3.5" />
+                    ) : (
+                      <StickyNote className="w-3.5 h-3.5" />
+                    )}
+                    <span className="text-[11px] truncate max-w-[100px]">
+                      {sentToNote ? 'Sent!' : (activeNote.title || 'Untitled')}
+                    </span>
+                  </button>
                 )}
               </div>
             </>
@@ -778,6 +915,8 @@ export function ChatPage() {
                 isNothingToRemember={nothingToRemember === msg.id}
                 isRememberError={rememberErrorMsgId === msg.id}
                 rememberErrorText={rememberErrorMsgId === msg.id ? rememberErrorText : ''}
+                imageData={msg.imageData}
+                fileContext={msg.fileContext ? { name: msg.fileContext.name, type: msg.fileContext.type } : undefined}
               />
             ) : (
               <AssistantMessage
@@ -797,6 +936,9 @@ export function ChatPage() {
                 isNothingToRemember={nothingToRemember === msg.id}
                 isRememberError={rememberErrorMsgId === msg.id}
                 rememberErrorText={rememberErrorMsgId === msg.id ? rememberErrorText : ''}
+                chpioMode={chpioMode}
+                onSentToNote={handleSentToNote}
+                onOptionClick={handleOptionClick}
               />
             );
 
@@ -844,7 +986,7 @@ export function ChatPage() {
   );
 }
 
-const UserMessage = React.memo(function UserMessage({ content, timestamp, onEdit, onRemember, isRemembering, isRemembered, isNothingToRemember, isRememberError, rememberErrorText }: { content: string; timestamp: number; onEdit: (newContent: string) => void; onRemember: () => void; isRemembering: boolean; isRemembered: boolean; isNothingToRemember: boolean; isRememberError: boolean; rememberErrorText: string }) {
+const UserMessage = React.memo(function UserMessage({ content, timestamp, onEdit, onRemember, isRemembering, isRemembered, isNothingToRemember, isRememberError, rememberErrorText, imageData, fileContext }: { content: string; timestamp: number; onEdit: (newContent: string) => void; onRemember: () => void; isRemembering: boolean; isRemembered: boolean; isNothingToRemember: boolean; isRememberError: boolean; rememberErrorText: string; imageData?: { base64: string; mimeType: string }; fileContext?: { name: string; type: string } }) {
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(content);
@@ -908,6 +1050,21 @@ const UserMessage = React.memo(function UserMessage({ content, timestamp, onEdit
           <div className="relative">
             <div className="text-sm leading-relaxed rounded-2xl rounded-tr-md px-4 py-3 bg-slate-900/40 backdrop-blur-lg text-white/90 border border-teal-400/15 overflow-hidden">
               <div className="break-words whitespace-pre-wrap" style={{ wordBreak: 'break-word' }}>{content}</div>
+              {imageData && (
+                <div className="mt-2 rounded-lg overflow-hidden border border-white/10 max-w-[200px]">
+                  <img
+                    src={`data:${imageData.mimeType};base64,${imageData.base64}`}
+                    alt="Attached image"
+                    className="w-full h-auto max-h-[150px] object-contain"
+                  />
+                </div>
+              )}
+              {fileContext && (
+                <div className="mt-2 flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white/5 border border-white/10">
+                  <FileText className="w-3.5 h-3.5 text-white/30 shrink-0" />
+                  <span className="text-[11px] text-white/40 truncate">{fileContext.name}</span>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-1 mt-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
               <div className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-900/50 backdrop-blur-md border border-white/5">
@@ -950,12 +1107,35 @@ const UserMessage = React.memo(function UserMessage({ content, timestamp, onEdit
 
 const ThinkingBlock = React.memo(function ThinkingBlock({ thinking, isStreaming }: { thinking: string; isStreaming: boolean }) {
   const [expanded, setExpanded] = useState(isStreaming);
+  const [startTime] = useState(() => Date.now());
+  const [duration, setDuration] = useState(0);
+  const [finalDuration, setFinalDuration] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!isStreaming) setExpanded(false);
-  }, [isStreaming]);
+    if (!isStreaming) {
+      setExpanded(false);
+      setFinalDuration(duration);
+    }
+  }, [isStreaming, duration]);
+
+  useEffect(() => {
+    if (!isStreaming) return;
+    const interval = setInterval(() => {
+      setDuration(Date.now() - startTime);
+    }, 100);
+    return () => clearInterval(interval);
+  }, [isStreaming, startTime]);
 
   if (!thinking.trim()) return null;
+
+  const formatDuration = (ms: number) => {
+    const seconds = ms / 1000;
+    if (seconds < 1) return `${Math.floor(ms)}ms`;
+    return `${seconds.toFixed(1)}s`;
+  };
+
+  const tokenCount = Math.ceil(thinking.length / 4);
+  const displayDuration = isStreaming ? duration : finalDuration;
 
   return (
     <div className="mb-2">
@@ -963,10 +1143,15 @@ const ThinkingBlock = React.memo(function ThinkingBlock({ thinking, isStreaming 
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-1.5 text-[11px] text-white/30 hover:text-white/50 transition-colors cursor-pointer"
       >
-        <Brain className="w-3 h-3" />
-        <span>{isStreaming && expanded ? 'Thinking...' : 'Thought'}</span>
+        <Brain className={`w-3 h-3 ${isStreaming ? 'think-dot' : ''}`} />
+        <span>{isStreaming && expanded ? `Thinking for ${formatDuration(duration)}...` : 'Thought'}</span>
         {isStreaming && expanded && (
           <span className="w-1 h-1 rounded-full bg-teal-400/50 animate-pulse" />
+        )}
+        {!isStreaming && displayDuration && (
+          <span className="text-white/20 ml-0.5">
+            {formatDuration(displayDuration)} · ~{tokenCount} tokens
+          </span>
         )}
         <ChevronDown className={`w-2.5 h-2.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
@@ -1006,6 +1191,9 @@ const AssistantMessage = React.memo(function AssistantMessage({
   isNothingToRemember,
   isRememberError,
   rememberErrorText,
+  chpioMode,
+  onSentToNote,
+  onOptionClick,
 }: {
   content: string;
   thinking?: string;
@@ -1023,10 +1211,46 @@ const AssistantMessage = React.memo(function AssistantMessage({
   isNothingToRemember: boolean;
   isRememberError: boolean;
   rememberErrorText: string;
+  chpioMode?: boolean;
+  onSentToNote?: () => void;
+  onOptionClick?: (text: string) => void;
 }) {
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(content);
+  const [sentToNote, setSentToNote] = useState(false);
+
+  const activeSession = useChatStore((s) => s.sessions.find((sess) => sess.id === s.activeSessionId));
+  const activeNoteId = activeSession?.activeNoteId;
+  const notes = useNotesStore((s) => s.notes);
+  const appendToNote = useNotesStore((s) => s.appendToNote);
+
+  const activeNote = activeNoteId ? notes.find((n) => n.id === activeNoteId) : null;
+
+  const getSelectedText = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return null;
+    const range = sel.getRangeAt(0);
+    const container = range.commonAncestorContainer;
+    const messageEl = container instanceof HTMLElement ? container : container.parentElement;
+    if (!messageEl?.closest('.assistant-message')) return null;
+    return sel.toString().trim();
+  };
+
+  const handleSendToNote = () => {
+    if (!activeNoteId) return;
+    const selectedText = getSelectedText();
+    const textToSend = selectedText || content;
+    if (!textToSend.trim()) return;
+
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const formatted = `[${timestamp}] ${textToSend}`;
+    appendToNote(activeNoteId, formatted);
+    setSentToNote(true);
+    setTimeout(() => setSentToNote(false), 2000);
+    onSentToNote?.();
+    window.getSelection()?.removeAllRanges();
+  };
 
   const handleCopy = () => {
     navigator.clipboard.writeText(content);
@@ -1050,13 +1274,21 @@ const AssistantMessage = React.memo(function AssistantMessage({
         ...(!isError && !(isStreaming && content) ? [{ icon: <Pen className="w-3.5 h-3.5" />, label: 'Edit', onClick: () => { setEditing(true); setEditValue(content); } }] : []),
         { icon: <RefreshCw className="w-3.5 h-3.5" />, label: 'Regenerate', onClick: onRegenerate },
         { icon: <Bookmark className="w-3.5 h-3.5" />, label: 'Save to memory', onClick: onRemember, disabled: isRemembering },
+        ...(activeNote ? [{
+          icon: sentToNote ? <Check className="w-3.5 h-3.5 text-teal-400" /> : <StickyNote className="w-3.5 h-3.5" />,
+          label: sentToNote ? 'Sent!' : (getSelectedText() ? 'Send selection to note' : 'Send to note'),
+          onClick: handleSendToNote,
+          disabled: sentToNote,
+        }] : []),
       ]}
     >
-      <div className="flex justify-start group">
+      <div className="relative flex justify-start group">
         <div className="max-w-[85%] min-w-0 overflow-hidden flex gap-2.5">
           <ChpioAvatar
             animated={isStreaming}
-            className="w-10 h-10 rounded-lg overflow-hidden shrink-0 mt-1 bg-teal-400/10 flex items-center justify-center"
+            className={`w-10 h-10 rounded-lg overflow-hidden shrink-0 mt-1 flex items-center justify-center ${
+              chpioMode ? 'bg-purple-400/15 chpio-avatar-glow' : 'bg-teal-400/10'
+            }`}
           />
           <div className="flex-1 min-w-0">
             <div className="text-xs text-white/30 mb-1.5 font-medium">ChPio</div>
@@ -1100,7 +1332,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
               </>
             ) : (
               <div
-                className={`text-sm leading-relaxed rounded-2xl rounded-tl-md px-4 py-3 backdrop-blur-lg border overflow-hidden min-w-0 ${
+                className={`assistant-message text-sm leading-relaxed rounded-2xl rounded-tl-md px-4 py-3 backdrop-blur-lg border overflow-hidden min-w-0 ${
                   isError
                     ? 'bg-red-900/40 border-red-400/20 text-red-300/90'
                     : 'bg-slate-900/40 border-white/10 text-white/85'
@@ -1108,7 +1340,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
                 style={{ contain: 'content' }}
               >
                 {content ? (
-                  isStreaming ? <MessageContent content={content} /> : <LazyMessageContent content={content} />
+                  isStreaming ? <MessageContent content={content} /> : <LazyMessageContent content={content} onOptionClick={onOptionClick} />
                 ) : (
                   <span className="inline-block w-1.5 h-3.5 bg-white/30 rounded-sm animate-pulse" />
                 )}
@@ -1163,6 +1395,14 @@ const AssistantMessage = React.memo(function AssistantMessage({
             </div>
           </div>
         </div>
+
+        {/* Toast notification for send to note */}
+        {sentToNote && (
+          <div className="absolute -bottom-8 left-0 px-2 py-1 rounded-md bg-teal-400/15 border border-teal-400/30 backdrop-blur-md flex items-center gap-1.5 z-10">
+            <Check className="w-3 h-3 text-teal-400" />
+            <span className="text-[10px] text-teal-400">Sent to {activeNote?.title || 'note'}</span>
+          </div>
+        )}
       </div>
     </ContextMenu>
   );
@@ -1171,8 +1411,14 @@ const AssistantMessage = React.memo(function AssistantMessage({
 const remarkPlugins = [remarkGfm, remarkMath];
 const rehypePlugins = [rehypeKatex];
 
-function MessageContent({ content }: { content: string }) {
+function MessageContent({ content, onOptionClick }: { content: string; onOptionClick?: (text: string) => void }) {
   const deferredContent = useDeferredValue(content);
+
+  const options = useMemo(() => parseInteractiveOptions(deferredContent), [deferredContent]);
+  const textContent = useMemo(
+    () => (options ? removeOptionsFromContent(deferredContent) : deferredContent),
+    [deferredContent, options]
+  );
 
   const rendered = useMemo(
     () => (
@@ -1181,20 +1427,35 @@ function MessageContent({ content }: { content: string }) {
         rehypePlugins={rehypePlugins}
         components={mdComponents}
       >
-        {deferredContent}
+        {textContent}
       </ReactMarkdown>
     ),
-    [deferredContent]
+    [textContent]
   );
 
   return (
     <div className="break-words overflow-hidden min-w-0 leading-relaxed" style={{ wordBreak: 'break-word', contain: 'content' }}>
       {rendered}
+      {options && onOptionClick && (
+        <div className="flex flex-wrap gap-2 mt-3">
+          {options.map((opt) => (
+            <button
+              key={opt.number}
+              onClick={() => onOptionClick(opt.text)}
+              className="px-3 py-2 rounded-xl text-xs bg-white/5 border border-white/10 
+                         text-white/70 hover:bg-teal-400/10 hover:text-teal-400 
+                         hover:border-teal-400/20 transition-all cursor-pointer text-left"
+            >
+              {opt.text}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function LazyMessageContent({ content }: { content: string }) {
+function LazyMessageContent({ content, onOptionClick }: { content: string; onOptionClick?: (text: string) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -1216,7 +1477,7 @@ function LazyMessageContent({ content }: { content: string }) {
 
   return (
     <div ref={ref}>
-      {isVisible ? <MessageContent content={content} /> : <div className="min-h-[40px]" />}
+      {isVisible ? <MessageContent content={content} onOptionClick={onOptionClick} /> : <div className="min-h-[40px]" />}
     </div>
   );
 }

@@ -13,8 +13,9 @@ const ResearchPage = React.lazy(() => import('../pages/ResearchPage'));
 const EmailPage = React.lazy(() => import('../pages/EmailPage'));
 const CalendarPage = React.lazy(() => import('../pages/CalendarPage'));
 const MemoryPage = React.lazy(() => import('../pages/MemoryPage'));
+const ImageGenPage = React.lazy(() => import('../pages/ImageGenPage'));
 
-const rightPages = ['chat', 'notes', 'docs', 'research', 'email', 'calendar', 'memory', 'settings'] as const;
+const rightPages = ['chat', 'notes', 'docs', 'research', 'email', 'calendar', 'memory', 'imagegen', 'settings'] as const;
 
 function PageFallback({ type = 'default' }: { type?: 'default' | 'cards' }) {
   return (
@@ -63,6 +64,7 @@ export function RightPanel() {
                 {activeFeature === 'email' && <EmailPage />}
                 {activeFeature === 'calendar' && <CalendarPage />}
                 {activeFeature === 'memory' && <MemoryPage />}
+                {activeFeature === 'imagegen' && <ImageGenPage />}
                 {activeFeature === 'settings' && <SettingsPanel />}
               </Suspense>
             </div>

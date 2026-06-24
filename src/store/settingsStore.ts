@@ -241,7 +241,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     for (const provider of providers) {
       if (!provider.enabled) continue;
-      if (provider.id !== 'ollama' && provider.id !== 'llamacpp' && !provider.apiKey) continue;
+      if (provider.id !== 'ollama' && provider.id !== 'llamacpp' && provider.id !== 'webllm' && provider.id !== 'custom' && !provider.apiKey) continue;
 
       const lastSynced = provider.modelsLastSynced || 0;
       if (now - lastSynced < AUTO_SYNC_INTERVAL) continue;
