@@ -11,17 +11,30 @@ export interface ParsedDocUpdate {
   success: boolean;
 }
 
-const DOC_UPDATE_REGEX = /```doc-update\nid:\s*([^\n]+)\n---\n([\s\S]*?)```END-DOC-UPDATE/g;
+const DOC_UPDATE_REGEX = /```doc-update[ \t]*\r?\nid:[ \t]*([^\r\n]+)[ \t]*\r?\n---[ \t]*\r?\n([\s\S]*?)\r?\n```END-DOC-UPDATE/g;
 
 export function parseDocUpdates(text: string): DocUpdate[] {
   const updates: DocUpdate[] = [];
   let match: RegExpExecArray | null;
 
+  DOC_UPDATE_REGEX.lastIndex = 0;
   while ((match = DOC_UPDATE_REGEX.exec(text)) !== null) {
     const id = match[1].trim();
     const content = match[2].trim();
     if (id && content) {
       updates.push({ id, content });
+    }
+  }
+
+  if (updates.length === 0) {
+    const altRegex = /```doc-update[\s\S]*?id:[ \t]*([^\r\n]+)[\s\S]*?---[\s\S]*?([\s\S]*?)```END-DOC-UPDATE/g;
+    altRegex.lastIndex = 0;
+    while ((match = altRegex.exec(text)) !== null) {
+      const id = match[1].trim();
+      const content = match[2].trim();
+      if (id && content && !updates.some((u) => u.id === id && u.content === content)) {
+        updates.push({ id, content });
+      }
     }
   }
 
@@ -46,7 +59,10 @@ export function executeDocUpdates(updates: DocUpdate[]): ParsedDocUpdate[] {
 }
 
 export function stripDocUpdates(text: string): string {
-  return text.replace(/```doc-update\nid:\s*[^\n]+\n---\n[\s\S]*?```END-DOC-UPDATE/g, '').trim();
+  return text
+    .replace(/```doc-update[ \t]*\r?\nid:[ \t]*[^\r\n]+[ \t]*\r?\n---[ \t]*\r?\n[\s\S]*?\r?\n```END-DOC-UPDATE/g, '')
+    .replace(/```doc-update[\s\S]*?id:[ \t]*[^\r\n]+[\s\S]*?---[\s\S]*?```END-DOC-UPDATE/g, '')
+    .trim();
 }
 
 export function formatDocUpdateSummary(results: ParsedDocUpdate[]): string {

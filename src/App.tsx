@@ -12,7 +12,10 @@ import { SettingsModal } from './components/SettingsModal';
 import { OnboardingFooter } from './components/OnboardingFooter';
 import { ChatPage } from './pages/ChatPage';
 import { BottomDock } from './components/BottomDock';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { ToastContainer } from './components/Toast';
 import { getActiveModels } from './utils/models';
+import { relativeTime } from './utils/relativeTime';
 import type { ChatSession } from './types';
 
 export default function App() {
@@ -50,16 +53,19 @@ export default function App() {
       )}
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
 
-      <AnimatePresence mode="wait">
-        {view === 'onboarding' ? (
-          <OnboardingView key="onboarding" />
-        ) : (
-          <WorkspaceView key="workspace" />
-        )}
-      </AnimatePresence>
+      <ErrorBoundary>
+        <AnimatePresence mode="wait">
+          {view === 'onboarding' ? (
+            <OnboardingView key="onboarding" />
+          ) : (
+            <WorkspaceView key="workspace" />
+          )}
+        </AnimatePresence>
+      </ErrorBoundary>
 
       <ProfileModal />
       <SettingsModal />
+      <ToastContainer />
     </div>
   );
 }
@@ -89,17 +95,6 @@ function OnboardingView() {
     if (m) return m.name;
     const providerId = modelId.split('/')[0];
     return modelId.replace(`${providerId}/`, '');
-  };
-
-  const relativeTime = (ts: number) => {
-    const diff = Date.now() - ts;
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return 'now';
-    if (mins < 60) return `${mins}m`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h`;
-    const days = Math.floor(hrs / 24);
-    return `${days}d`;
   };
 
   const shouldAnimate = listOpen && recent.length > 1;
@@ -203,7 +198,7 @@ function OnboardingView() {
                           </span>
                         </div>
                         <div className="text-white/25 text-xs">
-                          {getModelName(session.modelId)} · {relativeTime(session.updatedAt)}
+                          {getModelName(session.modelId)} · {relativeTime(session.updatedAt, true)}
                         </div>
                       </motion.button>
                     ))}

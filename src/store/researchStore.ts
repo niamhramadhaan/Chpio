@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+const STORAGE_KEY = 'chpio-research-sessions';
+
 export interface ResearchSource {
   id: string;
   title: string;
@@ -44,10 +46,29 @@ interface ResearchState {
   setActiveSession: (id: string | null) => void;
   deleteSession: (id: string) => void;
   getActiveSession: () => ResearchSession | undefined;
+  loadSessions: () => void;
+}
+
+function loadFromStorage(): ResearchSession[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+function saveSessions(sessions: ResearchSession[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+  } catch {
+    // ignore quota errors
+  }
 }
 
 export const useResearchStore = create<ResearchState>((set, get) => ({
-  sessions: [],
+  sessions: loadFromStorage(),
   activeSessionId: null,
 
   createSession: (query) => {
@@ -63,58 +84,62 @@ export const useResearchStore = create<ResearchState>((set, get) => ({
       suggestedQueries: [],
       startedAt: Date.now(),
     };
-    set({ sessions: [session, ...get().sessions], activeSessionId: id });
+    const sessions = [session, ...get().sessions];
+    saveSessions(sessions);
+    set({ sessions, activeSessionId: id });
     return id;
   },
 
   updateSession: (id, patch) => {
-    set({
-      sessions: get().sessions.map((s) => (s.id === id ? { ...s, ...patch } : s)),
-    });
+    const sessions = get().sessions.map((s) => (s.id === id ? { ...s, ...patch } : s));
+    saveSessions(sessions);
+    set({ sessions });
   },
 
   addStep: (sessionId, step) => {
-    set({
-      sessions: get().sessions.map((s) =>
-        s.id === sessionId ? { ...s, steps: [...s.steps, step] } : s,
-      ),
-    });
+    const sessions = get().sessions.map((s) =>
+      s.id === sessionId ? { ...s, steps: [...s.steps, step] } : s,
+    );
+    saveSessions(sessions);
+    set({ sessions });
   },
 
   updateStep: (sessionId, stepId, patch) => {
-    set({
-      sessions: get().sessions.map((s) =>
-        s.id === sessionId
-          ? { ...s, steps: s.steps.map((st) => (st.id === stepId ? { ...st, ...patch } : st)) }
-          : s,
-      ),
-    });
+    const sessions = get().sessions.map((s) =>
+      s.id === sessionId
+        ? { ...s, steps: s.steps.map((st) => (st.id === stepId ? { ...st, ...patch } : st)) }
+        : s,
+    );
+    saveSessions(sessions);
+    set({ sessions });
   },
 
   addSource: (sessionId, source) => {
-    set({
-      sessions: get().sessions.map((s) =>
-        s.id === sessionId
-          ? { ...s, sources: s.sources.some((existing) => existing.url === source.url) ? s.sources : [...s.sources, source] }
-          : s,
-      ),
-    });
+    const sessions = get().sessions.map((s) =>
+      s.id === sessionId
+        ? { ...s, sources: s.sources.some((existing) => existing.url === source.url) ? s.sources : [...s.sources, source] }
+        : s,
+    );
+    saveSessions(sessions);
+    set({ sessions });
   },
 
   addFact: (sessionId, fact) => {
-    set({
-      sessions: get().sessions.map((s) =>
-        s.id === sessionId ? { ...s, facts: [...s.facts, fact] } : s,
-      ),
-    });
+    const sessions = get().sessions.map((s) =>
+      s.id === sessionId ? { ...s, facts: [...s.facts, fact] } : s,
+    );
+    saveSessions(sessions);
+    set({ sessions });
   },
 
   setActiveSession: (id) => set({ activeSessionId: id }),
 
   deleteSession: (id) => {
     const { sessions, activeSessionId } = get();
+    const filtered = sessions.filter((s) => s.id !== id);
+    saveSessions(filtered);
     set({
-      sessions: sessions.filter((s) => s.id !== id),
+      sessions: filtered,
       activeSessionId: activeSessionId === id ? null : activeSessionId,
     });
   },
@@ -122,5 +147,9 @@ export const useResearchStore = create<ResearchState>((set, get) => ({
   getActiveSession: () => {
     const { sessions, activeSessionId } = get();
     return sessions.find((s) => s.id === activeSessionId);
+  },
+
+  loadSessions: () => {
+    set({ sessions: loadFromStorage() });
   },
 }));

@@ -144,3 +144,80 @@
 .katex .mop {
   color: inherit;
 }
+
+@keyframes think-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes think-glow {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(45, 212, 191, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(45, 212, 191, 0.4);
+  }
+}
+
+.think-active {
+  animation: think-pulse 1.5s ease-in-out infinite, think-glow 1.5s ease-in-out infinite;
+}
+
+.think-dot {
+  animation: think-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes chpio-glow {
+  0%, 100% {
+    box-shadow: 0 0 4px rgba(168, 85, 247, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+  }
+}
+
+@keyframes chpio-sparkle {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  25% {
+    transform: scale(1.2) rotate(5deg);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  75% {
+    transform: scale(1.1) rotate(-5deg);
+    opacity: 0.9;
+  }
+}
+
+.chpio-active {
+  animation: chpio-glow 2s ease-in-out infinite;
+}
+
+.chpio-sparkle {
+  animation: chpio-sparkle 2s ease-in-out infinite;
+}
+
+@keyframes chpio-avatar-glow {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(168, 85, 247, 0.5);
+  }
+}
+
+.chpio-avatar-glow {
+  animation: chpio-avatar-glow 2s ease-in-out infinite;
+}

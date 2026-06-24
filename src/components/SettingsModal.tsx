@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   RefreshCw, Eye, EyeOff, ChevronDown, ChevronUp, Zap, Power, PowerOff,
   Check, Settings as SettingsIcon, Palette, Server, CheckCircle2, XCircle, Star,
-  Search, RotateCcw, X, ExternalLink, Mail,
+  Search, RotateCcw, X, ExternalLink, Mail, Cpu, Download, Sparkles,
 } from 'lucide-react';
 import { useSettingsStore } from '../store/settingsStore';
 import { useEmailStore } from '../store/emailStore';
@@ -16,36 +16,52 @@ import { ConfirmModal } from './ui/ConfirmModal';
 import { PortalDropdown } from './ui/PortalDropdown';
 import { testConnection, fetchProviderModels } from '../services/providers';
 import { testTavilyConnection } from '../services/tavily';
+import { addCustomModel, removeCustomModel, getCustomModels } from '../services/webllm';
+import { useImageGenStore } from '../store/imageGenStore';
+import { DataManager } from './DataManager';
 import { WALLPAPERS } from '../types';
 import { getActiveModels } from '../utils/models';
 import type { ProviderConfig } from '../types';
 
 const PROVIDER_LOGOS: Record<string, string> = {
-  openrouter: 'https://cdn.simpleicons.org/openrouter',
-  openai: 'https://cdn.simpleicons.org/openai',
-  copilot: 'https://cdn.simpleicons.org/github',
-  ollama: 'https://cdn.simpleicons.org/ollama',
-  llamacpp: 'https://cdn.simpleicons.org/cplusplus',
-  google: 'https://cdn.simpleicons.org/google',
-  deepseek: 'https://cdn.simpleicons.org/deepseek',
-  groq: 'https://cdn.simpleicons.org/groq',
-  mistral: 'https://cdn.simpleicons.org/mistral',
-  together: 'https://cdn.simpleicons.org/together',
-  fireworks: 'https://cdn.simpleicons.org/fireworks',
+  openrouter: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/openrouter.svg',
+  openai: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/openai.svg',
+  copilot: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/github.svg',
+  ollama: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/ollama.svg',
+  llamacpp: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/cplusplus.svg',
+  webllm: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/googlechrome.svg',
+  google: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/google.svg',
+  deepseek: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/deepseek.svg',
+  groq: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIGZpbGw9IiNGNTUwMzYiLz48dGV4dCB4PSI3LjUiIHk9IjE4IiBmb250LXNpemU9IjE2IiBmb250LWZhbWlseT0iQXJpYWwsc2Fucy1zZXJpZiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IndoaXRlIj5HPC90ZXh0Pjwvc3ZnPg==',
+  mistral: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/mistralai.svg',
+  together: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIGZpbGw9IiM2MzY2RjEiLz48dGV4dCB4PSI3IiB5PSIxOCIgZm9udC1zaXplPSIxNiIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSI+VDwvdGV4dD48L3N2Zz4=',
+  fireworks: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIGZpbGw9IiNGRjZCMzUiLz48dGV4dCB4PSI2IiB5PSIxOCIgZm9udC1zaXplPSIxNiIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSI+RjwvdGV4dD48L3N2Zz4=',
+  custom: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIGZpbGw9IiM2MzY2RjEiLz48dGV4dCB4PSI2IiB5PSIxOCIgZm9udC1zaXplPSIxNiIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSI+QzwvdGV4dD48L3N2Zz4=',
 };
 
-type Tab = 'providers' | 'defaultModel' | 'wallpaper' | 'research' | 'email';
+type Tab = 'providers' | 'local' | 'defaultModel' | 'wallpaper' | 'research' | 'email' | 'data' | 'imagegen';
 
 export function SettingsModal() {
-  const { settingsModalOpen, setSettingsModalOpen } = useAppStore();
+  const { settingsModalOpen, setSettingsModalOpen, settingsInitialTab, setSettingsInitialTab } = useAppStore();
   const [activeTab, setActiveTab] = useState<Tab>('providers');
+
+  // Use initial tab when provided
+  useEffect(() => {
+    if (settingsInitialTab) {
+      setActiveTab(settingsInitialTab as Tab);
+      setSettingsInitialTab(null);
+    }
+  }, [settingsInitialTab, setSettingsInitialTab]);
 
   const tabs: { id: Tab; label: string; icon: typeof SettingsIcon }[] = [
     { id: 'providers', label: 'Providers', icon: Server },
+    { id: 'local', label: 'Local', icon: Cpu },
     { id: 'defaultModel', label: 'Default Model', icon: SettingsIcon },
     { id: 'wallpaper', label: 'Wallpaper', icon: Palette },
     { id: 'research', label: 'Research', icon: Search },
     { id: 'email', label: 'Email', icon: Mail },
+    { id: 'data', label: 'Data', icon: Download },
+    { id: 'imagegen', label: 'Image Gen', icon: Sparkles },
   ];
 
   return (
@@ -83,10 +99,13 @@ export function SettingsModal() {
         {/* Content area */}
         <div className="flex-1 overflow-y-auto min-h-0 pr-1">
           {activeTab === 'providers' && <ProvidersTab />}
+          {activeTab === 'local' && <LocalTab />}
           {activeTab === 'defaultModel' && <DefaultModelTab />}
           {activeTab === 'wallpaper' && <WallpaperTab />}
           {activeTab === 'research' && <ResearchTab />}
           {activeTab === 'email' && <EmailTab />}
+          {activeTab === 'data' && <DataManager />}
+          {activeTab === 'imagegen' && <ImageGenSettingsTab />}
         </div>
       </div>
     </Modal>
@@ -122,6 +141,315 @@ function DefaultModelTab() {
         />
         <p className="text-xs text-white/30">Used if the primary model fails or is unavailable.</p>
       </GlassCard>
+    </div>
+  );
+}
+
+function ImageGenSettingsTab() {
+  const providers = useSettingsStore((s) => s.providers);
+  const { customProvider, setCustomProvider } = useImageGenStore();
+
+  const imageGenProviders = useMemo(() => {
+    return [
+      {
+        id: 'openai',
+        name: 'OpenAI',
+        models: ['gpt-image-1', 'dall-e-3', 'dall-e-2'],
+        description: 'Best quality, requires OpenAI API key',
+      },
+      {
+        id: 'together',
+        name: 'Together AI',
+        models: ['FLUX.1-schnell-Free', 'FLUX.1-dev', 'SDXL'],
+        description: 'Free tier available, fast generation',
+      },
+      {
+        id: 'custom',
+        name: 'Custom Endpoint',
+        models: ['Any OpenAI-compatible model'],
+        description: 'Use your own image generation server',
+      },
+    ];
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <GlassCard className="p-5 space-y-4">
+        <h2 className="text-xs font-medium text-white/70 uppercase tracking-wider">Image Generation Providers</h2>
+        <p className="text-xs text-white/40">
+          Configure providers for AI image generation. Uses the same API keys from your main providers.
+        </p>
+
+        <div className="space-y-3">
+          {imageGenProviders.map((provider) => {
+            const mainProvider = providers.find((p) => p.id === provider.id);
+            const isCustom = provider.id === 'custom';
+            const isReady = isCustom
+              ? !!customProvider.baseUrl
+              : mainProvider?.enabled && mainProvider?.apiKey;
+
+            return (
+              <div
+                key={provider.id}
+                className={`p-4 rounded-xl border ${
+                  isReady ? 'bg-teal-400/5 border-teal-400/20' : 'bg-white/5 border-white/10'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-white">{provider.name}</span>
+                    {isReady ? (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-400/15 text-teal-400 font-medium">Ready</span>
+                    ) : (
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/30 font-medium">{isCustom ? 'Not configured' : 'No key'}</span>
+                    )}
+                  </div>
+                  {isReady && (
+                    <CheckCircle2 className="w-4 h-4 text-teal-400" />
+                  )}
+                </div>
+                <p className="text-[10px] text-white/30 mb-2">{provider.description}</p>
+                {!isCustom && (
+                  <div className="flex flex-wrap gap-1">
+                    {provider.models.map((model) => (
+                      <span
+                        key={model}
+                        className="px-2 py-0.5 rounded bg-white/5 text-[10px] text-white/40"
+                      >
+                        {model}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {!isReady && !isCustom && (
+                  <p className="text-[10px] text-white/20 mt-2">
+                    Enable in Settings → Providers and add API key
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </GlassCard>
+
+      {/* Custom Provider Settings */}
+      <GlassCard className="p-5 space-y-4">
+        <h2 className="text-xs font-medium text-white/70 uppercase tracking-wider">Custom Endpoint Settings</h2>
+        <p className="text-xs text-white/40">
+          Configure a custom OpenAI-compatible image generation endpoint.
+        </p>
+
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white/40">Base URL</label>
+            <input
+              value={customProvider.baseUrl}
+              onChange={(e) => setCustomProvider({ baseUrl: e.target.value })}
+              placeholder="https://your-server.com/v1"
+              className="w-full px-3 py-2 rounded-xl border outline-none text-sm font-mono
+                         bg-white/5 border-white/10 text-white focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20 transition-all"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white/40">API Key (optional)</label>
+            <input
+              type="password"
+              value={customProvider.apiKey}
+              onChange={(e) => setCustomProvider({ apiKey: e.target.value })}
+              placeholder="sk-..."
+              className="w-full px-3 py-2 rounded-xl border outline-none text-sm font-mono
+                         bg-white/5 border-white/10 text-white focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20 transition-all"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-white/40">Model Name</label>
+            <input
+              value={customProvider.modelName}
+              onChange={(e) => setCustomProvider({ modelName: e.target.value })}
+              placeholder="my-image-model"
+              className="w-full px-3 py-2 rounded-xl border outline-none text-sm font-mono
+                         bg-white/5 border-white/10 text-white focus:border-teal-400/50 focus:ring-1 focus:ring-teal-400/20 transition-all"
+            />
+          </div>
+        </div>
+      </GlassCard>
+
+      <GlassCard className="p-5 space-y-3">
+        <h2 className="text-xs font-medium text-white/70 uppercase tracking-wider">How to Use</h2>
+        <div className="space-y-2 text-xs text-white/40">
+          <p>1. Enable a provider above and add your API key</p>
+          <p>2. Open Image Gen from the bottom dock (⋯ menu)</p>
+          <p>3. Type a prompt and click Generate</p>
+          <p>4. Download or send generated images to chat</p>
+        </div>
+      </GlassCard>
+    </div>
+  );
+}
+
+function LocalTab() {
+  const providers = useSettingsStore((s) => s.providers);
+  const setProviderEnabled = useSettingsStore((s) => s.setProviderEnabled);
+  const setProviderModels = useSettingsStore((s) => s.setProviderModels);
+  const setProviderSynced = useSettingsStore((s) => s.setProviderSynced);
+  const webllmProvider = providers.find((p) => p.id === 'webllm');
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState('');
+  const [customFormOpen, setCustomFormOpen] = useState(false);
+  const [customModels, setCustomModels] = useState(getCustomModels());
+  const [customDraft, setCustomDraft] = useState<{ modelId: string; modelUrl: string; modelLibUrl: string; vramMb: string }>({ modelId: '', modelUrl: '', modelLibUrl: '', vramMb: '' });
+
+  const handleTest = async () => {
+    setTesting(true);
+    setTestResult(null);
+    const result = await testConnection('', undefined, 'webllm');
+    setTestResult({ ok: result.ok, msg: result.ok ? 'WebGPU available!' : result.error || 'Failed' });
+    setTesting(false);
+  };
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncError('');
+    try {
+      const models = await fetchProviderModels('', undefined, 'webllm');
+      setProviderModels('webllm', models);
+      setProviderSynced('webllm', Date.now());
+    } catch (e) {
+      setSyncError(e instanceof Error ? e.message : 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleToggle = async () => {
+    if (!webllmProvider) return;
+    const newEnabled = !webllmProvider.enabled;
+    setProviderEnabled('webllm', newEnabled);
+    if (newEnabled && webllmProvider.syncedModels.length === 0) {
+      await handleSync();
+    }
+  };
+
+  const handleAddCustom = () => {
+    if (!customDraft.modelId || !customDraft.modelUrl || !customDraft.modelLibUrl) return;
+    addCustomModel({
+      modelId: customDraft.modelId,
+      modelUrl: customDraft.modelUrl,
+      modelLibUrl: customDraft.modelLibUrl,
+      vramMb: customDraft.vramMb ? Number(customDraft.vramMb) : undefined,
+    });
+    setCustomModels(getCustomModels());
+    setCustomDraft({ modelId: '', modelUrl: '', modelLibUrl: '', vramMb: '' });
+    setCustomFormOpen(false);
+    handleSync();
+  };
+
+  if (!webllmProvider) return null;
+
+  return (
+    <div className="space-y-4">
+      <GlassCard className="p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-teal-400/10 flex items-center justify-center">
+            <Cpu className="w-5 h-5 text-teal-400" />
+          </div>
+          <div>
+            <h2 className="text-sm font-medium text-white">Local AI (Browser)</h2>
+            <p className="text-xs text-white/40">Run models directly in your browser via WebGPU</p>
+          </div>
+        </div>
+
+        <div className="rounded-lg bg-teal-400/5 border border-teal-400/10 p-3 space-y-1.5">
+          <p className="text-xs text-white/40">
+            No API key, no server. Models download on first use (~0.7-2 GB) and are cached locally.
+            Requires Chrome or Edge 113+ with WebGPU enabled.
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <GlassButton onClick={handleTest} disabled={testing} size="sm" className="flex items-center gap-1.5">
+            <Zap className={`w-3.5 h-3.5 ${testing ? 'animate-pulse' : ''}`} />
+            {testing ? 'Testing...' : 'Test WebGPU'}
+          </GlassButton>
+          <GlassButton onClick={handleSync} disabled={syncing} variant="accent" size="sm" className="flex items-center gap-1.5">
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing...' : 'Sync Models'}
+          </GlassButton>
+          <GlassButton onClick={handleToggle} size="sm" variant="ghost" className="flex items-center gap-1.5">
+            {webllmProvider.enabled ? (
+              <><PowerOff className="w-3.5 h-3.5" /> Disable</>
+            ) : (
+              <><Power className="w-3.5 h-3.5 text-teal-400" /> <span className="text-teal-400">Enable</span></>
+            )}
+          </GlassButton>
+        </div>
+
+        {testResult && (
+          <div className={`flex items-center gap-2 text-xs ${testResult.ok ? 'text-teal-400' : 'text-red-400'}`}>
+            {testResult.ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+            {testResult.msg}
+          </div>
+        )}
+        {syncError && <p className="text-red-400 text-xs">{syncError}</p>}
+      </GlassCard>
+
+      <GlassCard className="p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider">Custom Models</h3>
+          <button
+            onClick={() => setCustomFormOpen(!customFormOpen)}
+            className="text-[10px] px-2 py-0.5 rounded-md bg-teal-400/15 text-teal-400 font-medium cursor-pointer hover:bg-teal-400/25 transition-colors"
+          >
+            {customFormOpen ? 'Cancel' : '+ Add Model'}
+          </button>
+        </div>
+
+        {customFormOpen && (
+          <div className="rounded-lg bg-white/5 border border-white/10 p-3 space-y-2">
+            <input value={customDraft.modelId} onChange={(e) => setCustomDraft((s) => ({ ...s, modelId: e.target.value }))} placeholder="Model ID (e.g., MyModel-q4f16)" className="w-full px-3 py-1.5 rounded-lg border outline-none text-xs font-mono bg-white/5 border-white/10 text-white focus:border-teal-400/50 transition-all" />
+            <input value={customDraft.modelUrl} onChange={(e) => setCustomDraft((s) => ({ ...s, modelUrl: e.target.value }))} placeholder="Model URL (HuggingFace or direct)" className="w-full px-3 py-1.5 rounded-lg border outline-none text-xs font-mono bg-white/5 border-white/10 text-white focus:border-teal-400/50 transition-all" />
+            <input value={customDraft.modelLibUrl} onChange={(e) => setCustomDraft((s) => ({ ...s, modelLibUrl: e.target.value }))} placeholder="WASM lib URL (.wasm file)" className="w-full px-3 py-1.5 rounded-lg border outline-none text-xs font-mono bg-white/5 border-white/10 text-white focus:border-teal-400/50 transition-all" />
+            <div className="flex gap-2">
+              <input type="number" value={customDraft.vramMb} onChange={(e) => setCustomDraft((s) => ({ ...s, vramMb: e.target.value }))} placeholder="VRAM (MB)" className="w-28 px-3 py-1.5 rounded-lg border outline-none text-xs font-mono bg-white/5 border-white/10 text-white focus:border-teal-400/50 transition-all" />
+              <GlassButton size="sm" variant="accent" className="flex-1" onClick={handleAddCustom}>Add</GlassButton>
+            </div>
+            <p className="text-[10px] text-white/30">
+              Model must be in MLC format. See <a href="https://llm.mlc.ai/docs/deploy/webllm.html" target="_blank" rel="noreferrer" className="text-teal-400 hover:underline">MLC docs</a> for compiling custom models.
+            </p>
+          </div>
+        )}
+
+        {customModels.length > 0 && (
+          <div className="space-y-1">
+            {customModels.map((m) => (
+              <div key={m.id} className="flex items-center justify-between text-xs px-2 py-1 rounded-lg bg-white/5">
+                <span className="text-white/70 truncate flex-1">{m.name}</span>
+                <button onClick={() => { removeCustomModel(m.id); setCustomModels(getCustomModels()); handleSync(); }} className="ml-2 text-red-400/60 hover:text-red-400 cursor-pointer"><X className="w-3 h-3" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+      </GlassCard>
+
+      {webllmProvider.syncedModels.length > 0 && (
+        <GlassCard className="p-5 space-y-2">
+          <h3 className="text-xs font-medium text-white/50 uppercase tracking-wider">
+            Available Models ({webllmProvider.syncedModels.length})
+          </h3>
+          <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+            {webllmProvider.syncedModels.map((m) => (
+              <div key={m.id} className="flex items-center justify-between text-xs px-2 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
+                <span className="text-white/80 truncate flex-1">{m.name}</span>
+                {m.description && <span className="text-white/30 text-[10px] ml-2 shrink-0">{m.description}</span>}
+              </div>
+            ))}
+          </div>
+        </GlassCard>
+      )}
     </div>
   );
 }
@@ -195,7 +523,10 @@ function ProvidersTab() {
   const [confirmKey, setConfirmKey] = useState<string | null>(null);
   const [modelSearch, setModelSearch] = useState<Record<string, string>>({});
 
+  const initializedRef = useRef(false);
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     const keys: Record<string, string> = {};
     const urls: Record<string, string> = {};
     providers.forEach((p) => { keys[p.id] = p.apiKey; urls[p.id] = p.baseUrl; });
@@ -215,7 +546,7 @@ function ProvidersTab() {
   };
 
   const handleSync = async (provider: ProviderConfig) => {
-    if (provider.id !== 'ollama' && provider.id !== 'llamacpp' && !provider.apiKey) {
+    if (provider.id !== 'ollama' && provider.id !== 'llamacpp' && provider.id !== 'webllm' && provider.id !== 'custom' && !provider.apiKey) {
       setSyncErrors((s) => ({ ...s, [provider.id]: 'Enter an API key first' }));
       return;
     }
@@ -248,7 +579,7 @@ function ProvidersTab() {
     setProviderEnabled(provider.id, newEnabled);
 
     // Auto-sync when enabling a provider with valid credentials
-    if (newEnabled && (provider.id === 'ollama' || provider.id === 'llamacpp' || provider.apiKey)) {
+    if (newEnabled && (provider.id === 'ollama' || provider.id === 'llamacpp' || provider.id === 'webllm' || provider.id === 'custom' || provider.apiKey)) {
       setSyncing((s) => ({ ...s, [provider.id]: true }));
       try {
         const models = await fetchProviderModels(draftUrls[provider.id] || provider.baseUrl, provider.apiKey || undefined, provider.id);
@@ -275,11 +606,13 @@ function ProvidersTab() {
   };
 
   const sortedProviders = useMemo(() => {
-    return [...providers].sort((a, b) => {
-      if (a.id === mainProviderId) return -1;
-      if (b.id === mainProviderId) return 1;
-      return 0;
-    });
+    return [...providers]
+      .filter((p) => p.id !== 'webllm')
+      .sort((a, b) => {
+        if (a.id === mainProviderId) return -1;
+        if (b.id === mainProviderId) return 1;
+        return 0;
+      });
   }, [providers, mainProviderId]);
 
   return (
@@ -395,6 +728,7 @@ function ProvidersTab() {
                     )}
 
                     {/* Editable Base URL */}
+                    {provider.id !== 'webllm' && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-medium text-white/40">Base URL</label>
@@ -426,6 +760,7 @@ function ProvidersTab() {
                         )}
                       </div>
                     </div>
+                    )}
 
                     <div className="flex gap-2">
                       <GlassButton

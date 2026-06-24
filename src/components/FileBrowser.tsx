@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { ContextMenu } from './ui/ContextMenu';
+import { relativeTime } from '../utils/relativeTime';
 
 export interface BrowserItem {
   id: string;
@@ -31,17 +32,6 @@ interface FileBrowserProps {
   onDelete: (id: string) => void;
   onRename?: (id: string, name: string) => void;
   emptyText?: string;
-}
-
-function relativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
 }
 
 function getDateGroup(ts: number): string {
@@ -85,6 +75,7 @@ export function FileBrowser({
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(null);
 
   const filtered = search
     ? items.filter((i) => i.name.toLowerCase().includes(search.toLowerCase()))
@@ -108,12 +99,28 @@ export function FileBrowser({
     setRenamingId(null);
   };
 
+  const handleDeleteStart = (id: string) => {
+    setConfirmingDeleteId(id);
+    setMenuOpen(null);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (confirmingDeleteId) {
+      onDelete(confirmingDeleteId);
+      setConfirmingDeleteId(null);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setConfirmingDeleteId(null);
+  };
+
   const renderGridCard = (item: BrowserItem) => (
     <ContextMenu
       key={item.id}
       items={[
         ...(onRename ? [{ icon: <Pencil className="w-3.5 h-3.5" />, label: 'Rename', onClick: () => handleRenameStart(item) }] : []),
-        { icon: <Trash2 className="w-3.5 h-3.5" />, label: 'Delete', onClick: () => onDelete(item.id), variant: 'danger' as const },
+        { icon: <Trash2 className="w-3.5 h-3.5" />, label: 'Delete', onClick: () => handleDeleteStart(item.id), variant: 'danger' as const },
       ]}
     >
       <motion.div
@@ -121,73 +128,97 @@ export function FileBrowser({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        onClick={() => onSelect(item.id)}
+        onClick={() => confirmingDeleteId === item.id ? undefined : onSelect(item.id)}
         className={`group relative p-3 rounded-xl cursor-pointer transition-all ${
-          activeId === item.id
-            ? 'bg-teal-400/10 border border-teal-400/30'
-            : 'bg-[#1A201F]/60 border border-white/5 hover:border-teal-400/20 hover:bg-white/5'
+          confirmingDeleteId === item.id
+            ? 'bg-red-400/10 border border-red-400/30'
+            : activeId === item.id
+              ? 'bg-teal-400/10 border border-teal-400/30'
+              : 'bg-[#1A201F]/60 border border-white/5 hover:border-teal-400/20 hover:bg-white/5'
         }`}
       >
         <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-teal-400/[0.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
         <div className="relative">
-          <div className="flex items-start justify-between mb-1.5">
-            {item.type === 'folder' ? (
-              <Folder className="w-4 h-4 text-teal-400/60" />
-            ) : (
-              <FileText className="w-4 h-4 text-white/25" />
-            )}
-            <div className="relative">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMenuOpen(menuOpen === item.id ? null : item.id);
-                }}
-                className="p-1 rounded text-white/20 hover:text-white/60 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-              >
-                <MoreVertical className="w-3 h-3" />
-              </button>
-              {menuOpen === item.id && (
-                <div className="absolute right-0 top-full mt-1 w-28 bg-[#1A201F] border border-white/10 rounded-lg shadow-xl overflow-hidden z-20">
-                  {onRename && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleRenameStart(item); }}
-                      className="w-full flex items-center gap-2 px-2.5 py-2 text-[10px] text-white/60 hover:text-white hover:bg-white/5 cursor-pointer"
-                    >
-                      <Pencil className="w-3 h-3" /> Rename
-                    </button>
-                  )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onDelete(item.id); setMenuOpen(null); }}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 text-[10px] text-red-400 hover:bg-red-400/10 cursor-pointer"
-                  >
-                    <Trash2 className="w-3 h-3" /> Delete
-                  </button>
-                </div>
-              )}
+          {confirmingDeleteId === item.id ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-[11px] text-red-400 font-medium">Delete this item?</p>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteConfirm(); }}
+                  className="flex-1 px-2 py-1 rounded-lg bg-red-400/20 text-red-400 text-[10px] hover:bg-red-400/30 transition-colors cursor-pointer"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDeleteCancel(); }}
+                  className="flex-1 px-2 py-1 rounded-lg text-white/40 hover:text-white/60 hover:bg-white/5 text-[10px] transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
-          </div>
-          {renamingId === item.id ? (
-            <input
-              autoFocus
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onBlur={handleRenameSave}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleRenameSave(); if (e.key === 'Escape') setRenamingId(null); }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-transparent text-white/80 text-[11px] outline-none border-b border-teal-400/30 w-full mb-1"
-            />
           ) : (
-            <p className="text-[11px] text-white/70 truncate mb-1">{item.name}</p>
+            <>
+              <div className="flex items-start justify-between mb-1.5">
+                {item.type === 'folder' ? (
+                  <Folder className="w-4 h-4 text-teal-400/60" />
+                ) : (
+                  <FileText className="w-4 h-4 text-white/25" />
+                )}
+                <div className="relative">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(menuOpen === item.id ? null : item.id);
+                    }}
+                    className="p-1 rounded text-white/20 hover:text-white/60 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                  >
+                    <MoreVertical className="w-3 h-3" />
+                  </button>
+                  {menuOpen === item.id && (
+                    <div className="absolute right-0 top-full mt-1 w-28 bg-[#1A201F] border border-white/10 rounded-lg shadow-xl overflow-hidden z-20">
+                      {onRename && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRenameStart(item); }}
+                          className="w-full flex items-center gap-2 px-2.5 py-2 text-[10px] text-white/60 hover:text-white hover:bg-white/5 cursor-pointer"
+                        >
+                          <Pencil className="w-3 h-3" /> Rename
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteStart(item.id); }}
+                        className="w-full flex items-center gap-2 px-2.5 py-2 text-[10px] text-red-400 hover:bg-red-400/10 cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" /> Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {renamingId === item.id ? (
+                <input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={handleRenameSave}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleRenameSave(); if (e.key === 'Escape') setRenamingId(null); }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-transparent text-white/80 text-[11px] outline-none border-b border-teal-400/30 w-full mb-1"
+                />
+              ) : (
+                <p className="text-[11px] text-white/70 truncate mb-1">{item.name}</p>
+              )}
+              {item.preview && (
+                <p className="text-[9px] text-white/25 line-clamp-2 leading-relaxed mb-1.5">{item.preview}</p>
+              )}
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] text-white/15">{relativeTime(item.updatedAt)}</span>
+                {item.wordCount !== undefined && item.wordCount > 0 && (
+                  <span className="text-[9px] text-white/12">{item.wordCount}w</span>
+                )}
+              </div>
+            </>
           )}
-          {item.preview && (
-            <p className="text-[9px] text-white/25 line-clamp-2 leading-relaxed mb-1.5">{item.preview}</p>
-          )}
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] text-white/15">{relativeTime(item.updatedAt)}</span>
-            {item.wordCount !== undefined && item.wordCount > 0 && (
-              <span className="text-[9px] text-white/12">{item.wordCount}w</span>
-            )}
-          </div>
         </div>
       </motion.div>
     </ContextMenu>
@@ -198,7 +229,7 @@ export function FileBrowser({
       key={item.id}
       items={[
         ...(onRename ? [{ icon: <Pencil className="w-3.5 h-3.5" />, label: 'Rename', onClick: () => handleRenameStart(item) }] : []),
-        { icon: <Trash2 className="w-3.5 h-3.5" />, label: 'Delete', onClick: () => onDelete(item.id), variant: 'danger' as const },
+        { icon: <Trash2 className="w-3.5 h-3.5" />, label: 'Delete', onClick: () => handleDeleteStart(item.id), variant: 'danger' as const },
       ]}
     >
       <motion.div
@@ -206,11 +237,13 @@ export function FileBrowser({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={() => onSelect(item.id)}
+        onClick={() => confirmingDeleteId === item.id ? undefined : onSelect(item.id)}
         className={`group flex items-center gap-2.5 p-2 rounded-lg cursor-pointer transition-all ${
-          activeId === item.id
-            ? 'bg-teal-400/10 border border-teal-400/30'
-            : 'hover:bg-white/5 border border-transparent'
+          confirmingDeleteId === item.id
+            ? 'bg-red-400/10 border border-red-400/30'
+            : activeId === item.id
+              ? 'bg-teal-400/10 border border-teal-400/30'
+              : 'hover:bg-white/5 border border-transparent'
         }`}
       >
         {item.type === 'folder' ? (
@@ -219,7 +252,23 @@ export function FileBrowser({
           <FileText className="w-4 h-4 text-white/30 shrink-0" />
         )}
         <div className="flex-1 min-w-0">
-          {renamingId === item.id ? (
+          {confirmingDeleteId === item.id ? (
+            <div className="flex items-center gap-2">
+              <p className="text-[11px] text-red-400 font-medium flex-1">Delete?</p>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeleteConfirm(); }}
+                className="px-2 py-0.5 rounded bg-red-400/20 text-red-400 text-[10px] hover:bg-red-400/30 transition-colors cursor-pointer"
+              >
+                Yes
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleDeleteCancel(); }}
+                className="px-2 py-0.5 rounded text-white/40 hover:text-white/60 hover:bg-white/5 text-[10px] transition-colors cursor-pointer"
+              >
+                No
+              </button>
+            </div>
+          ) : renamingId === item.id ? (
             <input
               autoFocus
               value={renameValue}
@@ -233,39 +282,43 @@ export function FileBrowser({
             <p className="text-[11px] text-white/70 truncate">{item.name}</p>
           )}
         </div>
-        {item.wordCount !== undefined && (
+        {confirmingDeleteId !== item.id && item.wordCount !== undefined && (
           <span className="text-[9px] text-white/20 shrink-0">{item.wordCount}w</span>
         )}
-        <span className="text-[9px] text-white/20 shrink-0">{relativeTime(item.updatedAt)}</span>
-        <div className="relative shrink-0">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpen(menuOpen === item.id ? null : item.id);
-            }}
-            className="p-1 rounded text-white/20 hover:text-white/60 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
-          >
-            <MoreVertical className="w-3 h-3" />
-          </button>
-          {menuOpen === item.id && (
-            <div className="absolute right-0 top-full mt-1 w-28 bg-[#1A201F] border border-white/10 rounded-lg shadow-xl overflow-hidden z-20">
-              {onRename && (
+        {confirmingDeleteId !== item.id && (
+          <span className="text-[9px] text-white/20 shrink-0">{relativeTime(item.updatedAt)}</span>
+        )}
+        {confirmingDeleteId !== item.id && (
+          <div className="relative shrink-0">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(menuOpen === item.id ? null : item.id);
+              }}
+              className="p-1 rounded text-white/20 hover:text-white/60 opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+            >
+              <MoreVertical className="w-3 h-3" />
+            </button>
+            {menuOpen === item.id && (
+              <div className="absolute right-0 top-full mt-1 w-28 bg-[#1A201F] border border-white/10 rounded-lg shadow-xl overflow-hidden z-20">
+                {onRename && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleRenameStart(item); }}
+                    className="w-full flex items-center gap-2 px-2.5 py-2 text-[10px] text-white/60 hover:text-white hover:bg-white/5 cursor-pointer"
+                  >
+                    <Pencil className="w-3 h-3" /> Rename
+                  </button>
+                )}
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleRenameStart(item); }}
-                  className="w-full flex items-center gap-2 px-2.5 py-2 text-[10px] text-white/60 hover:text-white hover:bg-white/5 cursor-pointer"
+                  onClick={(e) => { e.stopPropagation(); handleDeleteStart(item.id); }}
+                  className="w-full flex items-center gap-2 px-2.5 py-2 text-[10px] text-red-400 hover:bg-red-400/10 cursor-pointer"
                 >
-                  <Pencil className="w-3 h-3" /> Rename
+                  <Trash2 className="w-3 h-3" /> Delete
                 </button>
-              )}
-              <button
-                onClick={(e) => { e.stopPropagation(); onDelete(item.id); setMenuOpen(null); }}
-                className="w-full flex items-center gap-2 px-2.5 py-2 text-[10px] text-red-400 hover:bg-red-400/10 cursor-pointer"
-              >
-                <Trash2 className="w-3 h-3" /> Delete
-              </button>
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
       </motion.div>
     </ContextMenu>
   );

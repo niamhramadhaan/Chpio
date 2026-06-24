@@ -86,6 +86,7 @@ interface NotesState {
   getPinnedNotes: () => Note[];
   addLink: (noteId: string, url: string) => void;
   removeLink: (noteId: string, linkId: string) => void;
+  appendToNote: (noteId: string, content: string) => void;
 }
 
 export const useNotesStore = create<NotesState>((set, get) => ({
@@ -314,6 +315,16 @@ export const useNotesStore = create<NotesState>((set, get) => ({
     const notes = get().notes.map((n) =>
       n.id === noteId ? { ...n, links: (n.links || []).filter((l) => l.id !== linkId), updatedAt: Date.now() } : n
     );
+    saveNotes(notes);
+    set({ notes });
+  },
+
+  appendToNote: (noteId, content) => {
+    const notes = get().notes.map((n) => {
+      if (n.id !== noteId) return n;
+      const separator = n.content ? '\n\n' : '';
+      return { ...n, content: n.content + separator + content, updatedAt: Date.now() };
+    });
     saveNotes(notes);
     set({ notes });
   },

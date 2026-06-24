@@ -21,11 +21,62 @@ interface OpenAIModelsResponse {
   data: OpenAIModel[];
 }
 
+const NON_CHAT_PATTERNS = [
+  /^text-embedding/i,
+  /^embedding-/i,
+  /^dall-e/i,
+  /^gpt-image/i,
+  /^whisper/i,
+  /^tts/i,
+  /^moderation/i,
+  /^babbage/i,
+  /^davinci/i,
+  /^chatgpt-4o-audio/i,
+  /^omni-moderation/i,
+  /^codex/i,
+  /^audio-/i,
+  /^transcribe/i,
+  /^gpt-4o-search/i,
+  /^gpt-4o-mini-search/i,
+  /-instruct$/i,
+  /^ft:/i,
+];
+
+function isChatModel(id: string): boolean {
+  if (NON_CHAT_PATTERNS.some((p) => p.test(id))) return false;
+  return true;
+}
+
+function guessContextLength(id: string): number {
+  const lower = id.toLowerCase();
+  if (lower.includes('gpt-4o') || lower.includes('gpt-4.1') || lower.includes('o3') || lower.includes('o4')) return 128000;
+  if (lower.includes('gpt-4-turbo') || lower.includes('gpt-4-1106')) return 128000;
+  if (lower.includes('gpt-4-32k')) return 32768;
+  if (lower.includes('gpt-4')) return 8192;
+  if (lower.includes('gpt-3.5-turbo-16k')) return 16384;
+  if (lower.includes('gpt-3.5')) return 4096;
+  if (lower.includes('o1')) return 128000;
+  if (lower.includes('deepseek')) return 64000;
+  if (lower.includes('llama')) return 8192;
+  if (lower.includes('mistral') || lower.includes('mixtral')) return 32768;
+  if (lower.includes('qwen')) return 32768;
+  if (lower.includes('gemini')) return 1048576;
+  if (lower.includes('claude')) return 200000;
+  return 4096;
+}
+
 export async function testConnection(
   baseUrl: string,
   apiKey?: string,
   providerId?: string,
 ): Promise<{ ok: boolean; error?: string }> {
+  if (providerId === 'webllm') {
+    const { isWebGPUAvailable } = await import('./webllm');
+    return isWebGPUAvailable()
+      ? { ok: true }
+      : { ok: false, error: 'WebGPU not available. Use Chrome or Edge 113+.' };
+  }
+
   try {
     const isOllama = providerId === 'ollama' || baseUrl.includes('11434');
     const isGoogle = providerId === 'google';
@@ -52,6 +103,11 @@ export async function fetchProviderModels(
   apiKey?: string,
   providerId?: string,
 ): Promise<Model[]> {
+  if (providerId === 'webllm') {
+    const { getAvailableModels } = await import('./webllm');
+    return getAvailableModels();
+  }
+
   const isOllama = providerId === 'ollama' || baseUrl.includes('11434');
   const isGoogle = providerId === 'google';
   const headers: Record<string, string> = {};
@@ -95,12 +151,15 @@ export async function fetchProviderModels(
   if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`);
   const data: OpenAIModelsResponse = await res.json();
 
-  return data.data.map((m) => ({
-    id: m.id,
-    name: m.id,
-    contextLength: 4096,
-    providerId: providerId,
-  }));
+  return data.data
+    .filter((m) => isChatModel(m.id))
+    .sort((a, b) => a.id.localeCompare(b.id))
+    .map((m) => ({
+      id: m.id,
+      name: m.id,
+      contextLength: guessContextLength(m.id),
+      providerId: providerId,
+    }));
 }
 
 export type StreamChunk = { type: 'content' | 'thinking'; text: string };
@@ -114,6 +173,12 @@ export async function* streamChat(
   signal?: AbortSignal,
   thinking?: boolean,
 ): AsyncGenerator<StreamChunk> {
+  if (providerId === 'webllm') {
+    const { streamLocalChat } = await import('./webllm');
+    yield* streamLocalChat(modelId, messages, signal);
+    return;
+  }
+
   const isOllama = providerId === 'ollama' || baseUrl.includes('11434');
   const isGoogle = providerId === 'google';
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };

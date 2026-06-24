@@ -9,6 +9,7 @@ export type Feature =
   | 'email'
   | 'calendar'
   | 'memory'
+  | 'imagegen'
   | 'settings';
 
 export interface Model {
@@ -30,6 +31,8 @@ export interface Message {
   thinking?: string;
   modelId?: string;
   timestamp: number;
+  fileContext?: { name: string; content: string; type: string };
+  imageData?: { base64: string; mimeType: string };
 }
 
 export interface Project {
@@ -49,6 +52,9 @@ export interface ChatSession {
   modelId: string;
   projectId?: string;
   attachedDocIds?: string[];
+  activeNoteId?: string;
+  goal?: string;
+  goalSteps?: string[];
   archived: boolean;
   archivedAt?: number;
   starred?: boolean;
@@ -197,6 +203,28 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     apiKey: '',
     baseUrl: 'http://localhost:8080',
     defaultBaseUrl: 'http://localhost:8080',
+    enabled: false,
+    modelsLastSynced: null,
+    syncedModels: [],
+    favoriteModels: [],
+  },
+  {
+    id: 'webllm',
+    name: 'Local (Browser)',
+    apiKey: '',
+    baseUrl: '',
+    defaultBaseUrl: '',
+    enabled: false,
+    modelsLastSynced: null,
+    syncedModels: [],
+    favoriteModels: [],
+  },
+  {
+    id: 'custom',
+    name: 'Custom',
+    apiKey: '',
+    baseUrl: '',
+    defaultBaseUrl: '',
     enabled: false,
     modelsLastSynced: null,
     syncedModels: [],

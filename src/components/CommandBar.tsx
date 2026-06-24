@@ -1,16 +1,19 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Paperclip, Brain, ArrowUp, ChevronDown, Search, X, Square, BookOpen, Check, Database } from 'lucide-react';
+import { Paperclip, Brain, ArrowUp, ChevronDown, Search, X, Square, BookOpen, Check, Database, Sparkles, AlertCircle, LoaderCircle } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useChatStore } from '../store/chatStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useDocsStore } from '../store/docsStore';
 import { useMemoryStore } from '../store/memoryStore';
+import { useProjectStore } from '../store/projectStore';
 import { streamChat } from '../services/providers';
-import { getActiveModels, stripProviderPrefix, getModelProvider } from '../utils/models';
+import { getActiveModels, stripProviderPrefix, getModelProvider, supportsThinking } from '../utils/models';
 import { buildDocContextSystemMessage } from '../utils/docContext';
 import { parseDocUpdates, executeDocUpdates, stripDocUpdates, formatDocUpdateSummary } from '../utils/parseDocUpdates';
 import { buildMemoryContextSystemMessage } from '../utils/memoryContext';
+import { buildChpioSystemMessage } from '../utils/chpioContext';
+import { buildProjectSystemMessage } from '../utils/projectContext';
 import { PortalDropdown } from './ui/PortalDropdown';
 
 const PROVIDER_LOGOS: Record<string, string> = {
@@ -42,6 +45,8 @@ export function CommandBar() {
   const view = useAppStore((s) => s.view);
   const setView = useAppStore((s) => s.setView);
   const setActiveFeature = useAppStore((s) => s.setActiveFeature);
+  const chpioMode = useAppStore((s) => s.chpioMode);
+  const toggleChpioMode = useAppStore((s) => s.toggleChpioMode);
   const createSession = useChatStore((s) => s.createSession);
   const addMessage = useChatStore((s) => s.addMessage);
   const updateLastAssistantMessage = useChatStore((s) => s.updateLastAssistantMessage);
@@ -49,6 +54,7 @@ export function CommandBar() {
   const setStreaming = useChatStore((s) => s.setStreaming);
   const stopStreaming = useChatStore((s) => s.stopStreaming);
   const isStreaming = useChatStore((s) => s.isStreaming);
+  const streamingThinking = useChatStore((s) => s.streamingThinking);
   const isArchived = useChatStore((s) => {
     const session = s.sessions.find((sess) => sess.id === s.activeSessionId);
     return session?.archived ?? false;
@@ -59,6 +65,7 @@ export function CommandBar() {
   const mainProviderId = useSettingsStore((s) => s.mainProviderId);
   const selectedModelId = useSettingsStore((s) => s.selectedModelId);
   const setSelectedModel = useSettingsStore((s) => s.setSelectedModel);
+  const user = useSettingsStore((s) => s.user);
 
   const models = useMemo(() => getActiveModels(providers), [providers]);
 
@@ -68,8 +75,11 @@ export function CommandBar() {
   const [showProviderSelector, setShowProviderSelector] = useState(false);
   const [showDocPicker, setShowDocPicker] = useState(false);
   const [toggles, setToggles] = useState({ think: false, memory: true });
-  const [attachedFile, setAttachedFile] = useState<{ name: string; text: string } | null>(null);
+  const [attachedFile, setAttachedFile] = useState<{ name: string; text: string; base64?: string; mimeType?: string } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [fileParsing, setFileParsing] = useState(false);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const pendingImageRef = useRef<{ base64: string; mimeType: string; name: string } | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const providerTriggerRef = useRef<HTMLDivElement>(null);
@@ -91,10 +101,17 @@ export function CommandBar() {
 
   const activeModelId = selectedModelId || defaultModelId || mainProviderFirstModel;
   const activeModel = models.find((m) => m.id === activeModelId);
-  const activeProviderId = activeModel ? getModelProvider(activeModel.id) : null;
+  const activeProviderId = activeModel
+    ? getModelProvider(activeModel.id)
+    : activeModelId
+      ? getModelProvider(activeModelId)
+      : null;
   const activeProviderLogo = activeProviderId ? PROVIDER_LOGOS[activeProviderId] : null;
   const activeProviderName = activeProviderId ? providers.find((p) => p.id === activeProviderId)?.name : null;
   const isHero = view === 'onboarding';
+  const [toast, setToast] = useState<string | null>(null);
+
+  const thinkingSupported = activeModelId ? supportsThinking(activeModelId, activeProviderId || undefined) : false;
 
   const toggleDocAttach = (docId: string) => {
     if (!activeSession) return;
@@ -108,7 +125,27 @@ export function CommandBar() {
     if (!input.trim() || isStreaming || isArchived) return;
 
     const message = input.trim();
-    const fileContext = attachedFile ? `\n\n[Attached: ${attachedFile.name}]\n${attachedFile.text}` : '';
+    const isImage = attachedFile?.base64;
+
+    // For images: just show [Image: name] in bubble, send base64 to AI
+    // For files: show [Attached: name] in bubble, send full text to AI
+    const filePreview = attachedFile
+      ? isImage
+        ? `\n\n[Image: ${attachedFile.name}]`
+        : `\n\n[Attached: ${attachedFile.name}]`
+      : '';
+
+    // Full content for AI (stored in fileContext, sent to provider)
+    const fileFullContent = attachedFile && !isImage ? attachedFile.text : undefined;
+
+    if (attachedFile?.base64 && attachedFile?.mimeType) {
+      pendingImageRef.current = {
+        base64: attachedFile.base64,
+        mimeType: attachedFile.mimeType,
+        name: attachedFile.name,
+      };
+    }
+
     setInput('');
     setAttachedFile(null);
     if (inputRef.current) {
@@ -125,12 +162,27 @@ export function CommandBar() {
 
     const sessionId = isHero ? createSession(modelId) : (useChatStore.getState().activeSessionId || createSession(modelId));
 
-    const userMsg = {
+    const userMsg: {
+      id: string;
+      role: 'user';
+      content: string;
+      timestamp: number;
+      fileContext?: { name: string; content: string; type: string };
+      imageData?: { base64: string; mimeType: string };
+    } = {
       id: crypto.randomUUID(),
       role: 'user' as const,
-      content: message + fileContext,
+      content: message + filePreview,
       timestamp: Date.now(),
     };
+
+    if (attachedFile) {
+      if (isImage && attachedFile.base64 && attachedFile.mimeType) {
+        userMsg.imageData = { base64: attachedFile.base64, mimeType: attachedFile.mimeType };
+      } else if (fileFullContent) {
+        userMsg.fileContext = { name: attachedFile.name, content: fileFullContent, type: 'document' };
+      }
+    }
     addMessage(sessionId, userMsg);
 
     const assistantMsg = {
@@ -156,19 +208,46 @@ export function CommandBar() {
       const sessionDocs = docs.filter((d) => session?.attachedDocIds?.includes(d.id));
       const docSystemMsg = buildDocContextSystemMessage(sessionDocs);
       const memorySystemMsg = toggles.memory ? buildMemoryContextSystemMessage(activeTag ? memories.filter(m => m.tags.includes(activeTag)) : memories) : null;
+      const chpioSystemMsg = chpioMode ? buildChpioSystemMessage(user) : null;
+      const projects = useProjectStore.getState().projects;
+      const activeProject = session?.projectId ? projects.find((p) => p.id === session.projectId) : null;
+      const projectSystemMsg = activeProject ? buildProjectSystemMessage(activeProject) : null;
 
       const chatMessages = useChatStore
         .getState()
         .getActiveSession()
         ?.messages.filter((msg) => msg.content)
-        .map((msg) => ({ role: msg.role as 'user' | 'assistant', content: msg.content })) || [];
+        .map((msg) => {
+          let content: string = msg.content;
+          // Append file context if present
+          if (msg.fileContext?.content) {
+            content += `\n\n[File: ${msg.fileContext.name}]\n${msg.fileContext.content}`;
+          }
+          return { role: msg.role as 'user' | 'assistant', content };
+        }) || [];
 
-      const combinedSystem = [memorySystemMsg, docSystemMsg].filter(Boolean).join('\n\n');
-      const messages = combinedSystem
+      const combinedSystem = [chpioSystemMsg, projectSystemMsg, memorySystemMsg, docSystemMsg].filter(Boolean).join('\n\n');
+      const messages: { role: 'user' | 'assistant' | 'system'; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }[] = combinedSystem
         ? [{ role: 'system' as const, content: combinedSystem }, ...chatMessages]
-        : chatMessages;
+        : [...chatMessages];
 
-      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), messages, pId, controller.signal, toggles.think);
+      const pendingImage = pendingImageRef.current;
+      pendingImageRef.current = null;
+
+      if (pendingImage && messages.length > 0) {
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg.role === 'user') {
+          const supportsVision = ['openai', 'google', 'openrouter'].includes(pId || '');
+          if (supportsVision) {
+            lastMsg.content = [
+              { type: 'text', text: lastMsg.content as string },
+              { type: 'image_url', image_url: { url: `data:${pendingImage.mimeType};base64,${pendingImage.base64}` } },
+            ];
+          }
+        }
+      }
+
+      const stream = streamChat(baseUrl, apiKey, stripProviderPrefix(mId), messages as any, pId, controller.signal, toggles.think);
       let accumulated = '';
       let thinkingAccum = '';
       let rafId: number | null = null;
@@ -258,18 +337,25 @@ export function CommandBar() {
     readFile(file);
   };
 
-  const readFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAttachedFile({ name: file.name, text: reader.result as string });
-    };
-    reader.readAsText(file);
+  const readFile = async (file: File) => {
+    setFileParsing(true);
+    setFileError(null);
+    try {
+      const { parseFile } = await import('../utils/fileParsing');
+      const result = await parseFile(file);
+      setAttachedFile(result);
+    } catch (e) {
+      console.error('Failed to read file:', e);
+      setFileError(e instanceof Error ? e.message : 'Failed to parse file');
+    } finally {
+      setFileParsing(false);
+    }
   };
 
   const handleFilePicker = () => {
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
-    fileInput.accept = '.txt,.md,.json,.csv,.js,.ts,.tsx,.jsx,.py,.html,.css,.yaml,.yml,.toml,.xml,.log,.env,.sh,.rb,.go,.rs,.java,.c,.cpp,.h';
+    fileInput.accept = '.txt,.md,.json,.csv,.js,.ts,.tsx,.jsx,.py,.html,.css,.yaml,.yml,.toml,.xml,.log,.env,.sh,.rb,.go,.rs,.java,.c,.cpp,.h,.pdf,.docx,.jpg,.jpeg,.png,.gif,.webp';
     fileInput.onchange = () => {
       const file = fileInput.files?.[0];
       if (!file) return;
@@ -309,21 +395,56 @@ export function CommandBar() {
     );
   }, [models, activeProviderId, modelSearch]);
 
-  const toggleButton = (key: keyof typeof toggles, icon: typeof Brain, label: string) => (
+  const isThinkingActive = toggles.think && isStreaming && streamingThinking;
+
+  const toggleButton = (key: keyof typeof toggles, icon: typeof Brain, label: string) => {
+    const isActive = key === 'think' && isThinkingActive;
+    const isThinkUnsupported = key === 'think' && !thinkingSupported && !toggles[key];
+
+    const handleClick = () => {
+      if (key === 'think' && !thinkingSupported && !toggles[key]) {
+        setToast('This model doesn\'t support thinking mode');
+        setTimeout(() => setToast(null), 3000);
+        return;
+      }
+      setToggles((t) => ({ ...t, [key]: !t[key] }));
+    };
+
+    return (
+      <button
+        key={key}
+        onClick={handleClick}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
+          toggles[key]
+            ? `bg-teal-400/15 text-teal-400 border border-teal-400/30 ${isActive ? 'think-active' : ''}`
+            : isThinkUnsupported
+              ? 'text-white/20 cursor-not-allowed border border-transparent'
+              : 'text-white/40 hover:text-white/60 hover:bg-white/5 border border-transparent'
+        }`}
+        title={isThinkUnsupported ? 'Not supported by this model' : label}
+        aria-label={label}
+        aria-pressed={toggles[key]}
+      >
+        {(() => { const I = icon; return <I className={`w-3.5 h-3.5 ${isActive ? 'think-dot' : ''}`} />; })()}
+        {isHero && <span>{label}</span>}
+      </button>
+    );
+  };
+
+  const chpioToggleButton = () => (
     <button
-      key={key}
-      onClick={() => setToggles((t) => ({ ...t, [key]: !t[key] }))}
+      onClick={toggleChpioMode}
       className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer ${
-        toggles[key]
-          ? 'bg-teal-400/15 text-teal-400 border border-teal-400/30'
+        chpioMode
+          ? 'bg-purple-400/15 text-purple-400 border border-purple-400/30 chpio-active'
           : 'text-white/40 hover:text-white/60 hover:bg-white/5 border border-transparent'
       }`}
-      title={label}
-      aria-label={label}
-      aria-pressed={toggles[key]}
+      title="Chpio mode"
+      aria-label="Chpio mode"
+      aria-pressed={chpioMode}
     >
-      {(() => { const I = icon; return <I className="w-3.5 h-3.5" />; })()}
-      {isHero && <span>{label}</span>}
+      <Sparkles className={`w-3.5 h-3.5 ${chpioMode ? 'chpio-sparkle' : ''}`} />
+      {isHero && <span>Chpio</span>}
     </button>
   );
 
@@ -350,13 +471,49 @@ export function CommandBar() {
         </div>
       )}
       <div className="p-3 sm:p-4">
-        {attachedFile && (
+        {fileParsing && (
           <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg bg-white/5 border border-white/5">
-            <Paperclip className="w-3 h-3 text-white/30 shrink-0" />
-            <span className="text-[11px] text-white/50 truncate flex-1">{attachedFile.name}</span>
-            <button onClick={() => setAttachedFile(null)} className="text-white/30 hover:text-white/60 cursor-pointer">
+            <LoaderCircle className="w-3 h-3 text-white/30 animate-spin shrink-0" />
+            <span className="text-[11px] text-white/40">Parsing file...</span>
+          </div>
+        )}
+        {fileError && (
+          <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg bg-red-400/10 border border-red-400/20">
+            <AlertCircle className="w-3 h-3 text-red-400/60 shrink-0" />
+            <span className="text-[11px] text-red-400/70 truncate flex-1">{fileError}</span>
+            <button onClick={() => setFileError(null)} className="text-red-400/40 hover:text-red-400/70 cursor-pointer">
               <X className="w-3 h-3" />
             </button>
+          </div>
+        )}
+        {attachedFile && (
+          <div className="mb-2">
+            <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white/5 border border-white/5">
+              {attachedFile.base64 ? (
+                <div className="w-8 h-8 rounded overflow-hidden shrink-0 bg-white/10">
+                  <img
+                    src={`data:${attachedFile.mimeType};base64,${attachedFile.base64}`}
+                    alt={attachedFile.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <Paperclip className="w-3 h-3 text-white/30 shrink-0" />
+              )}
+              <div className="flex-1 min-w-0">
+                <span className="text-[11px] text-white/50 truncate block">{attachedFile.name}</span>
+                {attachedFile.base64 && (
+                  <span className="text-[9px] text-white/25">
+                    {['openai', 'google', 'openrouter'].includes(activeProviderId || '')
+                      ? 'Vision model — image will be analyzed'
+                      : 'Image attached — select a vision model for analysis'}
+                  </span>
+                )}
+              </div>
+              <button onClick={() => setAttachedFile(null)} className="text-white/30 hover:text-white/60 cursor-pointer">
+                <X className="w-3 h-3" />
+              </button>
+            </div>
           </div>
         )}
         {attachedDocs.length > 0 && (
@@ -404,7 +561,7 @@ export function CommandBar() {
             <div className="p-2">
               <p className="px-1 pb-1.5 text-[9px] text-white/30 font-medium">Provider</p>
               <div className="flex items-center gap-1">
-                {providers.filter((p) => p.enabled && p.apiKey).map((provider) => {
+                {providers.filter((p) => p.enabled && (p.apiKey || ['ollama', 'llamacpp', 'webllm', 'custom'].includes(p.id))).map((provider) => {
                   const logo = PROVIDER_LOGOS[provider.id];
                   const providerModels = provider.syncedModels || [];
                   const isActive = activeProviderId === provider.id;
@@ -434,7 +591,7 @@ export function CommandBar() {
                   );
                 })}
               </div>
-              {providers.filter((p) => p.enabled && p.apiKey).length === 0 && (
+              {providers.filter((p) => p.enabled && (p.apiKey || ['ollama', 'llamacpp', 'webllm', 'custom'].includes(p.id))).length === 0 && (
                 <p className="px-1 py-2 text-[10px] text-white/20 text-center">No providers</p>
               )}
             </div>
@@ -454,12 +611,18 @@ export function CommandBar() {
           <div ref={triggerRef}>
             <button
               onClick={() => setShowModels(!showModels)}
-              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/60 hover:text-white text-xs transition-all cursor-pointer border border-white/5"
+              className={`flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer border border-white/5 ${
+                activeModel
+                  ? 'bg-white/5 hover:bg-white/10 text-white/60 hover:text-white'
+                  : 'bg-amber-400/10 hover:bg-amber-400/15 text-amber-400/70 hover:text-amber-400'
+              }`}
             >
               {activeModel ? (
                 <span className="truncate max-w-[60px] sm:max-w-[120px]">{activeModel.name}</span>
               ) : (
-                <span className="hidden sm:inline">Select Model</span>
+                <span className="truncate max-w-[60px] sm:max-w-[120px]">
+                  {activeModelId ? 'Model unavailable' : 'Select model'}
+                </span>
               )}
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showModels ? 'rotate-180' : ''}`} />
             </button>
@@ -471,6 +634,7 @@ export function CommandBar() {
         <div className="flex items-center gap-1.5">
           {toggleButton('think', Brain, 'Think')}
           {toggleButton('memory', Database, 'Memory')}
+          {chpioToggleButton()}
 
           {(toggles.memory && memories.length > 0) && (
             <span className="text-[9px] text-white/20 ml-0.5">{memories.length}</span>
@@ -632,6 +796,19 @@ export function CommandBar() {
           ))}
         </div>
       </PortalDropdown>
+
+      {/* Toast notification */}
+      {toast && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-2 rounded-lg bg-amber-400/15 border border-amber-400/30 backdrop-blur-md flex items-center gap-2"
+        >
+          <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+          <span className="text-xs text-amber-400">{toast}</span>
+        </motion.div>
+      )}
     </motion.div>
   );
 }

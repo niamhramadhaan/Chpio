@@ -8,21 +8,11 @@ import { useAppStore } from '../store/appStore';
 import { runResearch } from '../services/researchOrchestrator';
 import { streamChat } from '../services/providers';
 import { getActiveModels, stripProviderPrefix } from '../utils/models';
+import { relativeTime } from '../utils/relativeTime';
 import { ResearchInput } from '../components/research/ResearchInput';
 import { ResearchProgress } from '../components/research/ResearchProgress';
 import { ResearchSources } from '../components/research/ResearchSources';
 import { ResearchReport } from '../components/research/ResearchReport';
-
-function relativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
 
 export default function ResearchPage() {
   const { sessions, activeSessionId, createSession, updateSession, addStep, updateStep, addSource, addFact, setActiveSession, deleteSession, getActiveSession } = useResearchStore();
