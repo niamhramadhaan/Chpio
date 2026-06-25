@@ -25,6 +25,13 @@ export function DataManager() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExport = () => {
+    const confirmed = window.confirm(
+      'This backup file will contain your API keys in plain text.\n\n' +
+      'Keep this file secure and never share it publicly.\n\n' +
+      'Continue with export?'
+    );
+    if (!confirmed) return;
+
     const data: ExportData = {
       version: 1,
       exportedAt: Date.now(),
