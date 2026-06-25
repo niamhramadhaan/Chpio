@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: ChPio Guides
+    url: https://github.com/niamhramadhaan/Chpio#-chpio-guides
+    about: Check the built-in guides before reporting — press Cmd+K → "Chpio Guides"

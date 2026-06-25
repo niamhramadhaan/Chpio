@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Router } from 'wouter';
 import { useHashLocation } from 'wouter/use-hash-location';
 import { motion, AnimatePresence } from 'motion/react';
-import { MessageSquare, ChevronDown } from 'lucide-react';
+import { MessageSquare, ChevronDown, Settings, ArrowRight } from 'lucide-react';
 import { useAppStore, useIsMobile } from './store/appStore';
 import { useChatStore } from './store/chatStore';
 import { useSettingsStore } from './store/settingsStore';
@@ -93,9 +93,13 @@ function OnboardingView() {
   const setActiveSession = useChatStore((s) => s.setActiveSession);
   const setView = useAppStore((s) => s.setView);
   const setActiveFeature = useAppStore((s) => s.setActiveFeature);
+  const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
   const providers = useSettingsStore((s) => s.providers);
 
   const models = useMemo(() => getActiveModels(providers), [providers]);
+  const hasConfiguredProvider = providers.some(
+    (p) => p.enabled && (p.apiKey || ['ollama', 'llamacpp', 'webllm', 'custom'].includes(p.id)),
+  );
   const recent = useMemo(() => [...sessions].filter((s) => !s.archived).sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 10), [sessions]);
 
   const [listOpen, setListOpen] = useState(true);
@@ -164,6 +168,24 @@ function OnboardingView() {
       >
         Chatting Pioneer — your self-hosted AI workspace
       </motion.p>
+
+      {!hasConfiguredProvider && (
+        <motion.button
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.6 }}
+          onClick={() => setSettingsModalOpen(true)}
+          className="mt-5 flex items-center gap-2.5 px-4 py-2.5 rounded-xl
+                     bg-teal-400/10 border border-teal-400/20 hover:bg-teal-400/20
+                     hover:border-teal-400/30 transition-all cursor-pointer group"
+        >
+          <Settings className="w-4 h-4 text-teal-400/70" />
+          <span className="text-sm text-teal-400/80 group-hover:text-teal-400 transition-colors">
+            Add an API key to get started
+          </span>
+          <ArrowRight className="w-3.5 h-3.5 text-teal-400/50 group-hover:text-teal-400/80 group-hover:translate-x-0.5 transition-all" />
+        </motion.button>
+      )}
 
       {recent.length > 0 && (
         <motion.div
