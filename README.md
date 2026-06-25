@@ -1,6 +1,16 @@
 # ChPio — Chat Pioneer
 
-> Your self-hosted AI workspace. Chat with any model, write docs, research anything, manage email, generate images — all local-first, privacy-first.
+> Your self-hosted AI workspace (ﾉ◕ヮ◕)ﾉ*:・ﾟ✧
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/niamhramadhaan/Chpio?style=flat&color=yellow)](https://github.com/niamhramadhaan/Chpio/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/niamhramadhaan/Chpio?style=flat&color=red)](https://github.com/niamhramadhaan/Chpio/issues)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/niamhramadhaan/Chpio?style=flat&color=blue)](https://github.com/niamhramadhaan/Chpio/commits)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-6-purple?logo=vite&logoColor=white)
+
+Chat with any model, write docs, research anything, manage email, generate images — all local-first, privacy-first.
 
 <!-- SCREENSHOT: hero.png — full workspace view with chat open, side panel visible, and a nice wallpaper -->
 
@@ -8,7 +18,7 @@
 
 ---
 
-## What you can do
+## // What you can do
 
 **Chat with any AI** — connect to OpenRouter, OpenAI, Groq, DeepSeek, Mistral, Ollama, and more. Or run models directly in your browser with WebLLM. No API key needed.
 
@@ -24,12 +34,14 @@
 
 **Organize with projects** — group chats by project with custom skills and instructions. Give each project its own personality.
 
+**ChPio Mode** — toggle the sparkle button and your AI becomes ChPio — a cool friend with opinions, not a corporate chatbot. It remembers your goals, celebrates wins, and gives you structured choices when you're stuck. More on this below.
+
 ---
 
-## Quick Start
+## // Quick Start
 
 ```bash
-git clone https://github.com/niamhramadhaan/Chpio.git
+git clone https://github.com/niamhramadhaan/Chpio.git (╯°□°)╯︵ ┻━┻
 cd Chpio
 npm install
 npm run dev
@@ -43,7 +55,7 @@ Don't have an API key? [OpenRouter](https://openrouter.ai) gives you access to h
 
 ---
 
-## Features
+## // Features
 
 ### Talk to any AI
 
@@ -71,7 +83,7 @@ Open a note and you get a clean editor with task lists, links, and quick actions
 
 <!-- SCREENSHOT: note-editor.png — a note open with tasks, links, and the action bar visible -->
 
-**Documents** — a full rich-text editor with markdown support. Write with tables, code blocks, lists. Preview live. Export as Word (.docx), Markdown, or HTML.
+**Documents** — a full rich-text editor (ﾉ´Ŵ`)ﾉ*: ・ﾟ✧ with markdown support. Write with tables, code blocks, lists. Preview live. Export as Word (.docx), Markdown, or HTML.
 
 <!-- SCREENSHOT: docs-editor.png — document editor with a rich document open, showing toolbar and preview -->
 
@@ -93,7 +105,7 @@ Compose, reply, forward. Get AI-drafted replies based on the thread context — 
 
 <!-- SCREENSHOT: email-compose.png — compose modal with an AI-drafted reply visible -->
 
-Requires the companion email server (included in `/server`). See [Email Setup](#email-setup) below.
+Requires the companion email server (included in `/server`). See [Detailed Setup](#detailed-setup) below.
 
 ### Create images
 
@@ -117,9 +129,19 @@ Group related chats under a project. Give each project custom **skills** (what t
 
 <!-- SCREENSHOT: projects.png — project list or a project with its skills/instructions visible -->
 
+### ChPio Mode
+
+Most AI assistants are polite robots. ChPio Mode is different — toggle it on and your AI develops a personality. It tracks your goals, gives you options instead of open-ended questions, celebrates wins, and remembers what you told it.
+
+It reads your profile (name, title, timezone) and acts like a competent friend, not a customer service agent. It'll say things like "That broke. Let's fix it" instead of "I apologize for the inconvenience."
+
+Toggle it with the sparkle button in the chat input or via `⌘K` → "Toggle ChPio Mode".
+
+<!-- SCREENSHOT: chpio-mode.png — chat with ChPio mode active, showing the purple sparkle button and a casual AI response with goal tracking -->
+
 ---
 
-## Power User Stuff
+## // Power User Stuff
 
 **Command Palette** — press `⌘K` to search across all your chats, notes, docs, and memory. Jump to anything instantly.
 
@@ -152,7 +174,7 @@ Group related chats under a project. Give each project custom **skills** (what t
 
 ---
 
-## Detailed Setup
+## // Detailed Setup
 
 ### Email Setup
 
@@ -170,7 +192,7 @@ Then in ChPio: **Settings → Email** → enter `http://localhost:3001` → clic
 
 ---
 
-## Tech Stack
+## // Tech Stack
 
 | | |
 |---|---|
@@ -186,9 +208,9 @@ Then in ChPio: **Settings → Email** → enter `http://localhost:3001` → clic
 
 ---
 
-## Contributing
+## // Contributing
 
-Contributions welcome! Here's how:
+(ﾉ◕ヮ◕)ﾉ*:・ﾟ✧ Contributions welcome!
 
 1. Fork the repo
 2. Create a feature branch (`git checkout -b feat/my-feature`)
@@ -196,16 +218,32 @@ Contributions welcome! Here's how:
 4. Push to the branch
 5. Open a PR
 
-Check the [open issues](https://github.com/niamhramadhaan/Chpio/issues) for things to work on.
+Check the [open issues](https://github.com/niamhramadhaan/Chpio/issues) for things to work on. If you find a bug or have a feature idea, [open an issue](https://github.com/niamhramadhaan/Chpio/issues/new/choose) first.
 
 ---
 
-## License
+## // Built with
 
-[MIT](LICENSE)
+<p align="left">
+  <a href="https://react.dev"><img src="https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=white" alt="React" /></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.7-3178c6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
+  <a href="https://vitejs.dev"><img src="https://img.shields.io/badge/Vite-6-646cff?logo=vite&logoColor=white" alt="Vite" /></a>
+  <a href="https://tailwindcss.com"><img src="https://img.shields.io/badge/Tailwind-3-06b6d4?logo=tailwindcss&logoColor=white" alt="Tailwind" /></a>
+  <a href="https://zustand-demo.pmnd.rs"><img src="https://img.shields.io/badge/Zustand-5-fff?logo=zustand&logoColor=black" alt="Zustand" /></a>
+  <a href="https://tiptap.dev"><img src="https://img.shields.io/badge/TipTap-3-purple" alt="TipTap" /></a>
+  <a href="https://webllm.mlc.ai"><img src="https://img.shields.io/badge/WebLLM-Browser_AI-green" alt="WebLLM" /></a>
+</p>
+
+---
+
+## // License
+
+MIT ┬─┬ノ( º _ ºノ)
 
 ---
 
 <p align="center">
-  Made with ☕ and a questionable amount of late nights
+  (ﾉ´Ŵ`)ﾉ*: ・ﾟ✧ ChPio — Your AI Companion
+  <br>
+  Made with ☕ and questionable life choices
 </p>
