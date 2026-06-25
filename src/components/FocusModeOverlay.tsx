@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
+import { useLocation } from 'wouter';
 import { Focus, Home } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 
@@ -7,6 +8,7 @@ export function FocusModeOverlay() {
   const toggleFocusMode = useAppStore((s) => s.toggleFocusMode);
   const setView = useAppStore((s) => s.setView);
   const setActiveFeature = useAppStore((s) => s.setActiveFeature);
+  const [, navigate] = useLocation();
 
   return (
     <AnimatePresence>
@@ -23,6 +25,7 @@ export function FocusModeOverlay() {
               setView('onboarding');
               setActiveFeature('home');
               toggleFocusMode();
+              navigate('/');
             }}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#1A201F]/70 backdrop-blur-md border border-white/10 text-white/40 hover:text-white/70 hover:bg-white/10 transition-all cursor-pointer text-xs"
             title="Home"

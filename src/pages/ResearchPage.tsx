@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLocation } from 'wouter';
 import { ArrowLeft, Trash2, Clock, Loader2 } from 'lucide-react';
 import { useResearchStore } from '../store/researchStore';
 import { useSettingsStore } from '../store/settingsStore';
@@ -13,6 +14,7 @@ import { ResearchInput } from '../components/research/ResearchInput';
 import { ResearchProgress } from '../components/research/ResearchProgress';
 import { ResearchSources } from '../components/research/ResearchSources';
 import { ResearchReport } from '../components/research/ResearchReport';
+import { buildPath } from '../router';
 
 export default function ResearchPage() {
   const { sessions, activeSessionId, createSession, updateSession, addStep, updateStep, addSource, addFact, setActiveSession, deleteSession, getActiveSession } = useResearchStore();
@@ -25,6 +27,7 @@ export default function ResearchPage() {
   const createDoc = useDocsStore((s) => s.createDoc);
   const updateDoc = useDocsStore((s) => s.updateDoc);
   const setActiveFeature = useAppStore((s) => s.setActiveFeature);
+  const [, navigate] = useLocation();
 
   const [view, setView] = useState<'input' | 'history'>('input');
   const abortRef = useRef<AbortController | null>(null);
@@ -80,7 +83,8 @@ export default function ResearchPage() {
     const id = createDoc(`Research: ${activeSession.query}`);
     updateDoc(id, { content: activeSession.report });
     setActiveFeature('docs');
-  }, [activeSession, createDoc, updateDoc, setActiveFeature]);
+    navigate(buildPath('docs', { docId: id }));
+  }, [activeSession, createDoc, updateDoc, setActiveFeature, navigate]);
 
   const handleSelectSession = useCallback((id: string) => {
     setActiveSession(id);

@@ -2,10 +2,12 @@ import { useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, Search, MessageSquare, Archive, ArchiveRestore, Trash2, FolderKanban, Gamepad2, ArrowLeft, Lightbulb, FileText, Filter, Check, TextSearch, X, Star, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLocation } from 'wouter';
 import { useChatStore } from '../../store/chatStore';
 import { useProjectStore } from '../../store/projectStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useNotesStore } from '../../store/notesStore';
+import { buildPath } from '../../router';
 import { PortalDropdown } from '../ui/PortalDropdown';
 
 type Tab = 'playground' | 'projects';
@@ -17,6 +19,12 @@ export function ChatHistoryPanel() {
   const defaultModelId = useSettingsStore((s) => s.defaultModelId);
   const notes = useNotesStore((s) => s.notes);
   const folders = useNotesStore((s) => s.folders);
+  const [, navigate] = useLocation();
+
+  const selectSession = (id: string) => {
+    setActiveSession(id);
+    navigate(buildPath('chat', { sessionId: id }));
+  };
 
   const [tab, setTab] = useState<Tab>('playground');
   const [projectView, setProjectView] = useState<ProjectView>('list');
@@ -184,7 +192,7 @@ export function ChatHistoryPanel() {
                       key={session.id}
                       session={session}
                       isActive={activeSessionId === session.id}
-                      onSelect={() => setActiveSession(session.id)}
+                      onSelect={() => selectSession(session.id)}
                       isArchived
                       inlineConfirm={inlineConfirm}
                       onArchive={() => setInlineConfirm({ id: session.id, action: 'archive' })}
@@ -205,7 +213,7 @@ export function ChatHistoryPanel() {
                       key={session.id}
                       session={session}
                       isActive={activeSessionId === session.id}
-                      onSelect={() => setActiveSession(session.id)}
+                      onSelect={() => selectSession(session.id)}
                       projectName={getProjectName(session.projectId)}
                       inlineConfirm={inlineConfirm}
                       onArchive={() => setInlineConfirm({ id: session.id, action: 'archive' })}
@@ -396,7 +404,7 @@ export function ChatHistoryPanel() {
                   key={session.id}
                   session={session}
                   isActive={activeSessionId === session.id}
-                  onSelect={() => setActiveSession(session.id)}
+                  onSelect={() => selectSession(session.id)}
                   inlineConfirm={inlineConfirm}
                   onArchive={() => setInlineConfirm({ id: session.id, action: 'archive' })}
                   onConfirm={handleConfirm}
@@ -536,7 +544,7 @@ export function ChatHistoryPanel() {
           notes={notes}
           folders={folders}
           onClose={() => setAdvancedOpen(false)}
-          onSelectSession={(id) => { setActiveSession(id); setAdvancedOpen(false); }}
+          onSelectSession={(id) => { selectSession(id); setAdvancedOpen(false); }}
         />
       )}
     </div>

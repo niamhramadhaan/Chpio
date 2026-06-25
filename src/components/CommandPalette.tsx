@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLocation } from 'wouter';
 import {
   Search,
   MessageSquare,
@@ -21,6 +22,7 @@ import { useNotesStore } from '../store/notesStore';
 import { useDocsStore } from '../store/docsStore';
 import { useMemoryStore } from '../store/memoryStore';
 import { useSettingsStore } from '../store/settingsStore';
+import { buildPath } from '../router';
 import type { Feature } from '../types';
 
 interface CommandItem {
@@ -44,6 +46,7 @@ export function CommandPalette() {
   const setActiveFeature = useAppStore((s) => s.setActiveFeature);
   const toggleFocusMode = useAppStore((s) => s.toggleFocusMode);
   const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
+  const [, navigate] = useLocation();
 
   const sessions = useChatStore((s) => s.sessions);
   const setActiveSession = useChatStore((s) => s.setActiveSession);
@@ -95,8 +98,9 @@ export function CommandPalette() {
       if (note) setActiveFolder(note.folderId);
     }
     if (docId) setActiveDoc(docId);
+    navigate(buildPath(feature, { sessionId, noteId, docId }));
     setOpen(false);
-  }, [setView, setActiveFeature, setActiveSession, setActiveNote, setActiveFolder, setActiveDoc, notes]);
+  }, [setView, setActiveFeature, setActiveSession, setActiveNote, setActiveFolder, setActiveDoc, notes, navigate]);
 
   const items = useMemo<CommandItem[]>(() => {
     const result: CommandItem[] = [];
@@ -118,6 +122,7 @@ export function CommandPalette() {
             createSession(firstModel);
             setView('workspace');
             setActiveFeature('chat');
+            navigate('/chat');
             setOpen(false);
           }
         },
@@ -180,6 +185,7 @@ export function CommandPalette() {
         action: () => {
           setView('workspace');
           setActiveFeature(f.feature);
+          navigate(buildPath(f.feature));
           setOpen(false);
         },
         keywords: f.keywords,
@@ -254,6 +260,7 @@ export function CommandPalette() {
         action: () => {
           setView('workspace');
           setActiveFeature('memory');
+          navigate(buildPath('memory'));
           setOpen(false);
         },
         keywords: ['memory', memory.content.toLowerCase(), ...memory.tags],

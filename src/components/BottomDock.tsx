@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, type Transition } from 'motion/react';
+import { useLocation } from 'wouter';
 import {
   MessageSquare,
   StickyNote,
@@ -13,6 +14,7 @@ import {
   Focus,
 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
+import { buildPath } from '../router';
 import type { Feature } from '../types';
 
 interface DockItem {
@@ -43,6 +45,7 @@ const dockSpring: Transition = {
 
 export function BottomDock() {
   const { activeFeature, setActiveFeature, focusMode, toggleFocusMode } = useAppStore();
+  const [, navigate] = useLocation();
   const [animateSelected, setAnimateSelected] = useState<number | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
@@ -51,6 +54,7 @@ export function BottomDock() {
 
   const handleClick = (item: DockItem) => {
     setActiveFeature(item.feature);
+    navigate(buildPath(item.feature));
     setAnimateSelected(item.id);
     setMoreOpen(false);
     setTimeout(() => setAnimateSelected(null), 200);

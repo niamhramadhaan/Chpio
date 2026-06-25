@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLocation } from 'wouter';
 import {
   FolderOpen,
   FolderPlus,
@@ -28,6 +29,7 @@ import { useNotesStore } from '../store/notesStore';
 import { useChatStore } from '../store/chatStore';
 import { PinItemBase } from '../components/ui/pin-item-base';
 import { ContextMenu } from '../components/ui/ContextMenu';
+import { buildPath } from '../router';
 import { relativeTime } from '../utils/relativeTime';
 import type { Note, NoteFolder } from '../types';
 
@@ -712,6 +714,7 @@ export default function NotesPage() {
   const getPinnedNotes = useNotesStore((s) => s.getPinnedNotes);
   const getFolderNotes = useNotesStore((s) => s.getFolderNotes);
   const getArchivedNotes = useNotesStore((s) => s.getArchivedNotes);
+  const [, navigate] = useLocation();
   const getArchivedFolders = useNotesStore((s) => s.getArchivedFolders);
   const getNoteCount = useNotesStore((s) => s.getNoteCount);
 
@@ -966,9 +969,9 @@ export default function NotesPage() {
           {(view !== 'folders' || showArchived) && (
             <button
               onClick={() => {
-                if (showArchived) { setShowArchived(false); setSearchQuery(''); }
-                else if (activeNoteId) setActiveNote(null);
-                else setActiveFolder(null);
+                if (showArchived) { setShowArchived(false); setSearchQuery(''); navigate('/notes'); }
+                else if (activeNoteId) { setActiveNote(null); navigate(activeFolderId ? buildPath('notes', { folderId: activeFolderId }) : '/notes'); }
+                else { setActiveFolder(null); navigate('/notes'); }
               }}
               className="p-1.5 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
             >
@@ -978,8 +981,8 @@ export default function NotesPage() {
           <div className="flex items-center gap-1 min-w-0">
             <button
               onClick={() => {
-                if (showArchived) { setShowArchived(false); setSearchQuery(''); }
-                else { setActiveFolder(null); setActiveNote(null); }
+                if (showArchived) { setShowArchived(false); setSearchQuery(''); navigate('/notes'); }
+                else { setActiveFolder(null); setActiveNote(null); navigate('/notes'); }
               }}
               className={`text-sm font-medium transition-colors whitespace-nowrap ${
                 view === 'folders' && !showArchived
@@ -994,7 +997,7 @@ export default function NotesPage() {
               <>
                 <ChevronRight className="w-3 h-3 text-white/20 shrink-0" />
                 <button
-                  onClick={() => setActiveNote(null)}
+                  onClick={() => { setActiveNote(null); navigate(buildPath('notes', { folderId: activeFolderId! })); }}
                   className={`text-sm font-medium truncate transition-colors ${
                     !activeNote ? 'text-white/60' : 'text-white/30 hover:text-white/50 cursor-pointer'
                   }`}
@@ -1475,7 +1478,7 @@ export default function NotesPage() {
                       isArchived={note.archived}
                       selectMode={selectMode}
                       selected={selectedIds.has(note.id)}
-                      onOpen={() => { setActiveNote(note.id); setShowAllLinks(false); }}
+                      onOpen={() => { setActiveNote(note.id); setShowAllLinks(false); navigate(buildPath('notes', { noteId: note.id })); }}
                       onArchive={() => archiveNote(note.id)}
                       onDelete={() => deleteNote(note.id)}
                       onToggleSelect={() => toggleSelectItem(note.id)}
@@ -1583,7 +1586,7 @@ export default function NotesPage() {
                         isRenaming={renamingFolderId === folder.id}
                         selectMode={selectMode}
                         selected={selectedIds.has(folder.id)}
-                        onOpen={() => { setActiveFolder(folder.id); setShowAllLinks(false); }}
+                        onOpen={() => { setActiveFolder(folder.id); setShowAllLinks(false); navigate(buildPath('notes', { folderId: folder.id })); }}
                         onRename={() => setRenamingFolderId(folder.id)}
                         onRenameSubmit={(newName) => handleRenameFolder(folder.id, newName)}
                         onRenameCancel={() => setRenamingFolderId(null)}
@@ -1618,15 +1621,15 @@ export default function NotesPage() {
           onSearchChange={setSearchQuery}
           onNewFolder={handleNewFolder}
           onNewNote={handleNewNote}
-          onShowArchived={() => { setShowArchived(true); setSearchQuery(''); setActiveFolder(null); setActiveNote(null); clearSelectMode(); setShowAllLinks(false); }}
-          onHideArchived={() => { setShowArchived(false); setSearchQuery(''); clearSelectMode(); }}
-          onOpenPinnedNote={(noteId, folderId) => { setActiveFolder(folderId); setActiveNote(noteId); setShowAllLinks(false); }}
+          onShowArchived={() => { setShowArchived(true); setSearchQuery(''); setActiveFolder(null); setActiveNote(null); clearSelectMode(); setShowAllLinks(false); navigate('/notes'); }}
+          onHideArchived={() => { setShowArchived(false); setSearchQuery(''); clearSelectMode(); navigate('/notes'); }}
+          onOpenPinnedNote={(noteId, folderId) => { setActiveFolder(folderId); setActiveNote(noteId); setShowAllLinks(false); navigate(buildPath('notes', { noteId })); }}
           onSelectToggle={() => { if (selectMode) clearSelectMode(); else setSelectMode(true); }}
           onBulkDelete={bulkDelete}
           onBulkArchive={bulkArchive}
           onClearSelect={clearSelectMode}
           onAdvancedSearch={() => setAdvancedSearchOpen(true)}
-          onLinksToggle={() => { setShowAllLinks(!showAllLinks); if (!showAllLinks) { setActiveFolder(null); setActiveNote(null); setShowArchived(false); } }}
+          onLinksToggle={() => { setShowAllLinks(!showAllLinks); if (!showAllLinks) { setActiveFolder(null); setActiveNote(null); setShowArchived(false); navigate('/notes'); } }}
           onUnpin={(noteId) => togglePin(noteId)}
         />
       )}
@@ -1638,7 +1641,7 @@ export default function NotesPage() {
           folders={folders}
           sessions={[]}
           onClose={() => setAdvancedSearchOpen(false)}
-          onOpenNote={(noteId, folderId) => { setActiveFolder(folderId); setActiveNote(noteId); setAdvancedSearchOpen(false); }}
+          onOpenNote={(noteId, folderId) => { setActiveFolder(folderId); setActiveNote(noteId); setAdvancedSearchOpen(false); navigate(buildPath('notes', { noteId })); }}
         />
       )}
 
