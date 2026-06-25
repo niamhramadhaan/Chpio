@@ -22,6 +22,8 @@
 
 **Remember everything** — save facts from any chat to Memory. ChPio recalls them in future conversations.
 
+**Organize with projects** — group chats by project with custom skills and instructions. Give each project its own personality.
+
 ---
 
 ## Quick Start
@@ -37,6 +39,8 @@ Open [http://localhost:5173](http://localhost:5173) and you'll see the onboardin
 
 Don't have an API key? [OpenRouter](https://openrouter.ai) gives you access to hundreds of models with one key. Or use **WebLLM** to run models locally in your browser — zero setup.
 
+<!-- SCREENSHOT: onboarding.png — the welcome screen with the "Add an API key" CTA visible -->
+
 ---
 
 ## Features
@@ -45,37 +49,57 @@ Don't have an API key? [OpenRouter](https://openrouter.ai) gives you access to h
 
 Bring your own API key from any provider — OpenRouter, OpenAI, Groq, DeepSeek, Mistral, Google Gemini, Together AI, Fireworks, and more. Or run models locally with Ollama, llama.cpp, or WebLLM.
 
-ChPio streams responses in real-time, shows the model's thinking process, and lets you edit or regenerate anything. Attach files (PDFs, DOCX, images) and the AI reads them. Save important facts to Memory so ChPio remembers across conversations.
+ChPio streams responses in real-time, shows the model's thinking process, and lets you edit or regenerate anything.
 
-<!-- SCREENSHOT: chat-streaming.png — chat mid-stream with thinking blocks visible -->
+<!-- GIF: chat-streaming.gif — chat with a streaming response, thinking blocks expanding, then the response completes -->
+
+Attach files — PDFs, DOCX, images — and the AI reads them. Send a screenshot, drop a contract, or paste a codebase. The context goes straight to the model.
+
+<!-- SCREENSHOT: chat-file-attach.png — chat with a file attachment visible in the message bubble and the AI responding about it -->
+
+Save important facts to Memory mid-conversation. Next time you chat, ChPio already knows your preferences, project context, and past decisions.
+
+<!-- SCREENSHOT: chat-memory-save.png — the "Save to Memory" action on a message, or the memory save confirmation -->
 
 ### Write & organize
 
 **Notes** — jot things down in pocket-card folders. Add tasks with checkboxes, pin important notes, drag them between folders. Everything's searchable.
 
+<!-- SCREENSHOT: notes-folders.png — notes panel showing pocket-card folders with note counts -->
+
+Open a note and you get a clean editor with task lists, links, and quick actions — export as text, duplicate, move to another folder, or pin it to your active chat for reference.
+
+<!-- SCREENSHOT: note-editor.png — a note open with tasks, links, and the action bar visible -->
+
 **Documents** — a full rich-text editor with markdown support. Write with tables, code blocks, lists. Preview live. Export as Word (.docx), Markdown, or HTML.
 
-<!-- SCREENSHOT: notes-docs.png — notes panel with folders on the left, document editor on the right -->
+<!-- SCREENSHOT: docs-editor.png — document editor with a rich document open, showing toolbar and preview -->
 
 ### Research anything
 
 Type a question and ChPio runs a multi-step research pipeline: it plans the search, reads sources, evaluates what's useful, and writes you a structured report. You can expand source cards to see what was extracted, and save the report as a document.
 
-Needs a [Tavily API key](https://tavily.com) (free: 1000 searches/month). Set it up in **Settings → Research**.
+<!-- GIF: research-progress.gif — research running: sources appearing, facts being extracted, report building -->
 
-<!-- SCREENSHOT: research-progress.png — deep research in progress with source cards and progress bar -->
+Needs a [Tavily API key](https://tavily.com) (free: 1000 searches/month). Set it up in **Settings → Research**.
 
 ### Your email, smarter
 
-Connect your email account (IMAP/SMTP) and ChPio becomes an AI-powered inbox. It auto-triage each email — urgent, FYI, newsletter, or spam — and extracts topic tags. Compose, reply, forward. Get AI-drafted replies based on the thread context.
+Connect your email account (IMAP/SMTP) and ChPio becomes an AI-powered inbox. It auto-triages each email — urgent, FYI, newsletter, or spam — and extracts topic tags.
+
+<!-- SCREENSHOT: email-inbox.png — email inbox with AI triage badges (urgent/fyi/newsletter) and smart tags -->
+
+Compose, reply, forward. Get AI-drafted replies based on the thread context — just hit "Draft" and ChPio writes a response you can edit before sending.
+
+<!-- SCREENSHOT: email-compose.png — compose modal with an AI-drafted reply visible -->
 
 Requires the companion email server (included in `/server`). See [Email Setup](#email-setup) below.
-
-<!-- SCREENSHOT: email-triage.png — email inbox with AI tags and triage badges -->
 
 ### Create images
 
 Generate images from text prompts using OpenAI (DALL-E, gpt-image-1), Together AI (FLUX, SDXL), Pollinations, or your own custom endpoint. Download, copy prompts, or send images directly to chat.
+
+<!-- SCREENSHOT: image-gen.png — image generation canvas with a grid of generated images and the prompt bar -->
 
 Set up in **Settings → Image Gen**. Open from the bottom dock (⋯ menu).
 
@@ -85,13 +109,21 @@ Run AI models directly in your browser — no API key, no server, no install. Po
 
 Models download on first use (~0.7-2 GB) and get cached locally. Supported: Llama 3.2, Phi-3.5, Qwen2.5, Gemma 2, SmolLM2, and more.
 
+<!-- SCREENSHOT: webllm-running.png — WebLLM model running in browser with the model picker visible -->
+
+### Organize with projects
+
+Group related chats under a project. Give each project custom **skills** (what the AI should know) and **instructions** (how it should behave). A coding project gets a different AI personality than a writing project.
+
+<!-- SCREENSHOT: projects.png — project list or a project with its skills/instructions visible -->
+
 ---
 
 ## Power User Stuff
 
 **Command Palette** — press `⌘K` to search across all your chats, notes, docs, and memory. Jump to anything instantly.
 
-<!-- SCREENSHOT: command-palette.png — ⌘K overlay with search results -->
+<!-- GIF: command-palette.gif — pressing ⌘K, typing a search, selecting a result, landing on it -->
 
 **Keyboard Shortcuts:**
 
@@ -108,9 +140,15 @@ Models download on first use (~0.7-2 GB) and get cached locally. Supported: Llam
 
 **Focus Mode** — hides the side panel and dock for distraction-free chat. Toggle via `⌘K` → "Toggle Focus Mode".
 
+<!-- SCREENSHOT: focus-mode.png — focused chat view with centered input, no side panel -->
+
 **Quick Capture** — press `⌘⇧Q` anywhere to jot down a thought. Saved to a "Quick Notes" folder automatically.
 
-**Built-in Guides** — press `⌘K` → "Chpio Guides" for step-by-step walkthroughs of every feature.
+<!-- SCREENSHOT: quick-capture.png — the Quick Capture overlay with a note being typed -->
+
+**Right-click anything** — messages, notes, and docs have context menus. Edit, copy, archive, export, or save to memory without hunting for buttons.
+
+**Built-in Guides** — press `⌘K` → "Chpio Guides" for step-by-step walkthroughs of every feature. No need to leave the app.
 
 ---
 
