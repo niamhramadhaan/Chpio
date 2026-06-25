@@ -43,7 +43,7 @@ const defaultUser: UserProfile = {
   title: '',
 };
 
-const DEFAULT_WALLPAPER = 'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1920&q=80';
+const DEFAULT_WALLPAPER = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260324_151826_c7218672-6e92-402c-9e45-f1e0f454bdc4.mp4';
 
 function loadFromStorage(): Partial<SettingsState> {
   try {

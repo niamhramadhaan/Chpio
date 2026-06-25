@@ -8,8 +8,9 @@ import {
   Search,
   Mail,
   Database,
-  Sparkles,
+  Palette,
   MoreHorizontal,
+  Focus,
 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import type { Feature } from '../types';
@@ -31,7 +32,7 @@ const primaryItems: DockItem[] = [
 
 const secondaryItems: DockItem[] = [
   { id: 6, feature: 'memory', icon: Database, label: 'Memory' },
-  { id: 7, feature: 'imagegen', icon: Sparkles, label: 'Image Gen' },
+  { id: 7, feature: 'imagegen', icon: Palette, label: 'Image Gen' },
 ];
 
 const dockSpring: Transition = {
@@ -41,7 +42,7 @@ const dockSpring: Transition = {
 };
 
 export function BottomDock() {
-  const { activeFeature, setActiveFeature } = useAppStore();
+  const { activeFeature, setActiveFeature, focusMode, toggleFocusMode } = useAppStore();
   const [animateSelected, setAnimateSelected] = useState<number | null>(null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
@@ -225,6 +226,21 @@ export function BottomDock() {
                     </button>
                   );
                 })}
+                <div className="h-px bg-white/5 mx-2 my-1" />
+                <button
+                  onClick={() => {
+                    toggleFocusMode();
+                    setMoreOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer ${
+                    focusMode
+                      ? 'bg-teal-400/15 text-teal-400'
+                      : 'text-white/50 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Focus className="w-4 h-4" />
+                  {focusMode ? 'Exit Focus' : 'Focus Mode'}
+                </button>
               </div>
             </motion.div>,
             document.body

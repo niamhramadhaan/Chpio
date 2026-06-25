@@ -45,6 +45,7 @@ import { useNotesStore } from '../store/notesStore';
 import { buildChpioSystemMessage } from '../utils/chpioContext';
 import { buildProjectSystemMessage } from '../utils/projectContext';
 import { parseInteractiveOptions, removeOptionsFromContent } from '../utils/parseOptions';
+import { detectGoalResponse } from '../utils/parseGoal';
 import { exportChatAsMd, exportChatAsTxt, copyChatToClipboard, downloadFile, getExportFilename } from '../utils/exportChat';
 import { ChpioAvatar } from '../components/ChpioAvatar';
 
@@ -83,6 +84,7 @@ export function ChatPage() {
   const projects = useProjectStore((s) => s.projects);
   const setView = useAppStore((s) => s.setView);
   const setActiveFeature = useAppStore((s) => s.setActiveFeature);
+  const focusMode = useAppStore((s) => s.focusMode);
   const isMobile = useIsMobile();
   const createSession = useChatStore((s) => s.createSession);
   const addMessage = useChatStore((s) => s.addMessage);
@@ -93,6 +95,8 @@ export function ChatPage() {
   const setStreaming = useChatStore((s) => s.setStreaming);
   const editMessage = useChatStore((s) => s.editMessage);
   const toggleStar = useChatStore((s) => s.toggleStar);
+  const setGoal = useChatStore((s) => s.setGoal);
+  const setGoalStatus = useChatStore((s) => s.setGoalStatus);
   const defaultModelId = useSettingsStore((s) => s.defaultModelId);
   const fallbackModelId = useSettingsStore((s) => s.fallbackModelId);
   const selectedModelId = useSettingsStore((s) => s.selectedModelId);
@@ -134,6 +138,16 @@ export function ChatPage() {
   const activeNoteId = session?.activeNoteId;
   const activeNote = activeNoteId ? notes.find((n) => n.id === activeNoteId) : null;
   const [sentToNote, setSentToNote] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  // Trigger celebration animation when goal is completed
+  useEffect(() => {
+    if (session?.goalStatus === 'completed' && chpioMode) {
+      setShowCelebration(true);
+      const timer = setTimeout(() => setShowCelebration(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [session?.goalStatus, chpioMode]);
 
   const handleSentToNote = useCallback(() => {
     setSentToNote(true);
@@ -205,6 +219,17 @@ export function ChatPage() {
         }
       }
       if (rafId !== null) cancelAnimationFrame(rafId);
+
+      // Detect goal patterns in AI response
+      if (chpioMode) {
+        const goalDetection = detectGoalResponse(accumulated);
+        if (goalDetection.isGoalAck && goalDetection.goal) {
+          setGoal(session.id, goalDetection.goal, goalDetection.steps);
+        } else if (goalDetection.isGoalComplete) {
+          setGoalStatus(session.id, 'completed');
+        }
+      }
+
       updateLastAssistantMessage(session.id, accumulated);
     };
 
@@ -220,7 +245,7 @@ export function ChatPage() {
     }).finally(() => {
       setStreaming(false);
     });
-  }, [session, isStreaming, selectedModelId, activeModelId, models, providers, projects, user, chpioMode, addMessage, setStreaming, updateLastAssistantMessage]);
+  }, [session, isStreaming, selectedModelId, activeModelId, models, providers, projects, user, chpioMode, addMessage, setStreaming, updateLastAssistantMessage, setGoal, setGoalStatus]);
 
   const getModelName = useCallback((modelId: string) =>
     models.find((m) => m.id === modelId)?.name || modelId, [models]);
@@ -402,6 +427,18 @@ export function ChatPage() {
         accumulated = stripDocUpdates(accumulated) + '\n\n> ' + summary;
       }
 
+      // Detect goal patterns in AI response
+      if (chpioMode) {
+        const goalDetection = detectGoalResponse(accumulated);
+        if (goalDetection.isGoalAck && goalDetection.goal) {
+          // Store the goal (user will confirm in next message)
+          setGoal(sessionId, goalDetection.goal, goalDetection.steps);
+        } else if (goalDetection.isGoalComplete) {
+          // Mark goal as completed and trigger celebration
+          setGoalStatus(sessionId, 'completed');
+        }
+      }
+
       updateLastAssistantMessage(sessionId, accumulated);
       if (thinkingAccum) updateLastAssistantThinking(sessionId, thinkingAccum);
     };
@@ -505,6 +542,16 @@ export function ChatPage() {
         accumulated = stripDocUpdates(accumulated) + '\n\n> ' + summary;
       }
 
+      // Detect goal patterns in AI response
+      if (chpioMode) {
+        const goalDetection = detectGoalResponse(accumulated);
+        if (goalDetection.isGoalAck && goalDetection.goal) {
+          setGoal(session.id, goalDetection.goal, goalDetection.steps);
+        } else if (goalDetection.isGoalComplete) {
+          setGoalStatus(session.id, 'completed');
+        }
+      }
+
       updateLastAssistantMessage(session.id, accumulated);
       if (thinkingAccum) updateLastAssistantThinking(session.id, thinkingAccum);
     };
@@ -532,7 +579,7 @@ export function ChatPage() {
     } finally {
       setStreaming(false);
     }
-  }, [session, isStreaming, selectedModelId, activeModelId, models, providers, replaceSessionMessages, setStreaming, updateLastAssistantMessage, updateLastAssistantThinking, fallbackModelId, chpioMode, user]);
+  }, [session, isStreaming, selectedModelId, activeModelId, models, providers, replaceSessionMessages, setStreaming, updateLastAssistantMessage, updateLastAssistantThinking, fallbackModelId, chpioMode, user, setGoal, setGoalStatus]);
 
   const handleEditMessage = useCallback((msgId: string, newContent: string) => {
     if (!session) return;
@@ -566,12 +613,12 @@ export function ChatPage() {
         return;
       }
 
-      const summary = await summarizeForMemory(content, (msgs) => {
+      const extraction = await summarizeForMemory(content, (msgs) => {
         return streamChat(baseUrl, apiKey, stripProviderPrefix(model.id), msgs, pId);
       });
 
-      if (summary) {
-        createMemory(summary, ['from-chat']);
+      if (extraction) {
+        createMemory(extraction.content, ['from-chat'], extraction.type);
         setRememberedMsgId(msgId);
         setTimeout(() => setRememberedMsgId(null), 2000);
       } else {
@@ -591,6 +638,8 @@ export function ChatPage() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
+      {/* Header — hidden in focus mode when no messages */}
+      {!(focusMode && (!session || session.messages.length === 0)) && (
       <div className="px-3 sm:px-6 pt-3 sm:pt-4 pb-2 shrink-0 flex items-center gap-2">
         <motion.button
           onClick={() => {
@@ -651,6 +700,19 @@ export function ChatPage() {
                 >
                   {session.title}
                 </button>
+              )}
+
+              {session.goal && chpioMode && (
+                <div className="flex items-center gap-1.5 ml-2">
+                  <div className={`w-2 h-2 rounded-full ${
+                    session.goalStatus === 'completed' 
+                      ? 'bg-green-400' 
+                      : 'bg-purple-400 animate-pulse'
+                  }`} />
+                  <span className="text-xs text-white/30 truncate max-w-[120px]" title={session.goal}>
+                    {session.goal}
+                  </span>
+                </div>
               )}
 
               <div className="ml-auto flex items-center gap-1 relative" ref={exportRef}>
@@ -758,6 +820,7 @@ export function ChatPage() {
           );
         })()}
       </div>
+      )}
 
       {session?.archived && (
         <div className="mx-3 sm:mx-6 mb-2 px-3 py-2 rounded-lg bg-amber-400/10 border border-amber-400/20 flex items-center gap-2 shrink-0">
@@ -937,6 +1000,7 @@ export function ChatPage() {
                 isRememberError={rememberErrorMsgId === msg.id}
                 rememberErrorText={rememberErrorMsgId === msg.id ? rememberErrorText : ''}
                 chpioMode={chpioMode}
+                showCelebration={showCelebration}
                 onSentToNote={handleSentToNote}
                 onOptionClick={handleOptionClick}
               />
@@ -1141,12 +1205,21 @@ const ThinkingBlock = React.memo(function ThinkingBlock({ thinking, isStreaming 
     <div className="mb-2">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 text-[11px] text-white/30 hover:text-white/50 transition-colors cursor-pointer"
+        className="flex items-center gap-2 text-[11px] text-white/30 hover:text-white/50 transition-colors cursor-pointer"
       >
         <Brain className={`w-3 h-3 ${isStreaming ? 'think-dot' : ''}`} />
-        <span>{isStreaming && expanded ? `Thinking for ${formatDuration(duration)}...` : 'Thought'}</span>
-        {isStreaming && expanded && (
-          <span className="w-1 h-1 rounded-full bg-teal-400/50 animate-pulse" />
+        {isStreaming ? (
+          <span className="flex items-center gap-1.5">
+            <span>Thinking for {formatDuration(duration)}</span>
+            <span className="think-dots flex items-center gap-0.5">
+              <span className="w-1 h-1 rounded-full bg-teal-400/60 inline-block" />
+              <span className="w-1 h-1 rounded-full bg-teal-400/60 inline-block" />
+              <span className="w-1 h-1 rounded-full bg-teal-400/60 inline-block" />
+            </span>
+            <span className="text-white/15 ml-1">~{tokenCount} tokens</span>
+          </span>
+        ) : (
+          <span>Thought</span>
         )}
         {!isStreaming && displayDuration && (
           <span className="text-white/20 ml-0.5">
@@ -1192,6 +1265,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   isRememberError,
   rememberErrorText,
   chpioMode,
+  showCelebration,
   onSentToNote,
   onOptionClick,
 }: {
@@ -1212,6 +1286,7 @@ const AssistantMessage = React.memo(function AssistantMessage({
   isRememberError: boolean;
   rememberErrorText: string;
   chpioMode?: boolean;
+  showCelebration?: boolean;
   onSentToNote?: () => void;
   onOptionClick?: (text: string) => void;
 }) {
@@ -1286,9 +1361,10 @@ const AssistantMessage = React.memo(function AssistantMessage({
         <div className="max-w-[85%] min-w-0 overflow-hidden flex gap-2.5">
           <ChpioAvatar
             animated={isStreaming}
+            mood={showCelebration ? 'celebrating' : isStreaming ? 'responding' : 'idle'}
             className={`w-10 h-10 rounded-lg overflow-hidden shrink-0 mt-1 flex items-center justify-center ${
               chpioMode ? 'bg-purple-400/15 chpio-avatar-glow' : 'bg-teal-400/10'
-            }`}
+            } ${showCelebration ? 'chpio-celebrate' : ''}`}
           />
           <div className="flex-1 min-w-0">
             <div className="text-xs text-white/30 mb-1.5 font-medium">ChPio</div>

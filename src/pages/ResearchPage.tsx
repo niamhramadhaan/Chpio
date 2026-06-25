@@ -101,42 +101,42 @@ export default function ResearchPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 pt-4 pb-2 shrink-0 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {activeSession && (
-            <button
-              onClick={() => { setActiveSession(null); setView('input'); }}
-              className="p-1 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-            </button>
-          )}
-          <p className="text-[11px] text-white/50 font-medium">Deep Research</p>
-        </div>
-        <div className="flex items-center gap-1">
-          {sessions.length > 0 && (
-            <button
-              onClick={() => setView(view === 'history' ? 'input' : 'history')}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                view === 'history' ? 'bg-teal-400/15 text-teal-400' : 'text-white/30 hover:text-white/60 hover:bg-white/5'
-              }`}
-              title="Research history"
-            >
-              <Clock className="w-3.5 h-3.5" />
-            </button>
-          )}
-          {isRunning && (
-            <button
-              onClick={handleAbort}
-              className="px-2 py-1 rounded-lg bg-red-400/10 text-red-400/70 text-[9px] hover:bg-red-400/20 transition-colors cursor-pointer"
-            >
-              Stop
-            </button>
-          )}
+      <div className="px-4 pt-4 pb-2 shrink-0 border-b border-white/5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {activeSession && (
+              <button
+                onClick={() => { setActiveSession(null); setView('input'); }}
+                className="p-1 rounded-lg text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+              </button>
+            )}
+            <p className="text-[11px] text-white/50 font-medium">Deep Research</p>
+          </div>
+          <div className="flex items-center gap-1">
+            {sessions.length > 0 && (
+              <button
+                onClick={() => setView(view === 'history' ? 'input' : 'history')}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  view === 'history' ? 'bg-teal-400/15 text-teal-400' : 'text-white/30 hover:text-white/60 hover:bg-white/5'
+                }`}
+                title="Research history"
+              >
+                <Clock className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {isRunning && (
+              <button
+                onClick={handleAbort}
+                className="px-2 py-1 rounded-lg bg-red-400/10 text-red-400/70 text-[9px] hover:bg-red-400/20 transition-colors cursor-pointer"
+              >
+                Stop
+              </button>
+            )}
+          </div>
         </div>
       </div>
-
-      <div className="h-px bg-white/5 mx-3 shrink-0" />
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-3 pt-2 pb-3">

@@ -4,6 +4,8 @@
 
 Self-hosted AI workspace. Chat with any local model or API, organize with projects, take notes, manage email, generate images, and do deep research — all local-first, privacy-first.
 
+<!-- INSERT GIF: Hero screenshot showing the workspace with chat, side panel, and wallpaper -->
+
 ---
 
 ## 🚀 Features
@@ -20,12 +22,16 @@ Self-hosted AI workspace. Chat with any local model or API, organize with projec
 - **Save to Memory** — extract key facts from any message
 - **Interactive options** — AI gives clickable choices when unsure
 
+<!-- INSERT GIF: Chat demo showing streaming response with thinking blocks -->
+
 ### Image Generation 🎨
 - **AI image generation** canvas in the bottom dock
 - Support for **OpenAI** (DALL-E, gpt-image-1) and **Together AI** (FLUX, SDXL)
 - **Custom endpoint** — connect your own OpenAI-compatible server
 - Image grid with download, delete, copy prompt, and send-to-chat
 - Stylized provider/model selection dropdowns
+
+<!-- INSERT IMAGE: Image generation canvas with generated images -->
 
 ### Local AI (Browser) 🧠
 - Run models **directly in your browser** — no API key, no server, no install
@@ -48,8 +54,10 @@ Self-hosted AI workspace. Chat with any local model or API, organize with projec
 - Archive & search
 - Links management
 
+<!-- INSERT IMAGE: Notes panel showing folders, tasks, and pinned notes -->
+
 ### Documents 📄
-- **Rich text editor** with TipTap (ﾉ´ヮ`)ﾉ*: ・ﾟ✧
+- **Rich text editor** with TipTap (ﾉ´Ŵ`)ﾉ*: ・ﾟ✧
 - A4 page layout with visual separation
 - Markdown support (tables, code blocks, lists)
 - Export as **Markdown, HTML, or Word (.docx)**
@@ -65,6 +73,8 @@ Self-hosted AI workspace. Chat with any local model or API, organize with projec
 - **Suggested follow-up queries** after completion
 - **Save to Docs** — export research reports as documents
 - Research history with session management
+
+<!-- INSERT GIF: Deep research showing the multi-step pipeline in action -->
 
 ### Email 📧
 - **IMAP/SMTP** email client with companion server
@@ -84,6 +94,75 @@ Self-hosted AI workspace. Chat with any local model or API, organize with projec
 - Tag-based organization
 - Search functionality
 - **Error-aware save** — distinguishes "nothing notable" from actual failures
+
+---
+
+## ⌨️ Keyboard Shortcuts & Command Palette
+
+ChPio has a powerful **Command Palette** (⌘K) that lets you search across all chats, notes, docs, and memory — and jump to anything instantly.
+
+<!-- INSERT IMAGE: Command Palette overlay showing search results -->
+
+| Shortcut | Action |
+|----------|--------|
+| ⌘K | Open Command Palette — search everything, navigate anywhere |
+| ⌘⇧Q | Quick Capture — instantly save a note from anywhere |
+| ⌘/ | Keyboard Shortcuts reference |
+| ⌘F | Search messages in current chat |
+| ⌘B / ⌘I / ⌘U | Bold / Italic / Underline (in editor) |
+| ⌘Z / ⌘⇧Z | Undo / Redo |
+| Enter | Send message |
+| Shift+Enter | New line in message |
+| Esc | Close any overlay or cancel |
+
+<!-- INSERT IMAGE: Keyboard Shortcuts HUD showing the table layout -->
+
+### Focus Mode
+
+Toggle **Focus Mode** via Command Palette (⌘K → "Toggle Focus Mode") for a distraction-free chat experience. Hides the side panel and dock, centers the chat input.
+
+<!-- INSERT IMAGE: Focus mode showing centered chat input -->
+
+### Quick Capture
+
+Press **⌘⇧Q** anywhere to instantly jot down a thought. Notes are saved to a "Quick Notes" folder automatically — no need to switch panels.
+
+<!-- INSERT IMAGE: Quick Capture overlay -->
+
+---
+
+## 🎯 Notification Center & Activity Pulse
+
+### Notification Center
+The bell icon in the footer shows **actionable items** that need your attention:
+- Notes with incomplete tasks
+- Chats that errored during streaming
+- Empty chat sessions
+- Memories without tags
+
+<!-- INSERT IMAGE: Notification dropdown with items -->
+
+### Activity Pulse
+The onboarding screen shows a **Recent Activity** accordion with your latest work across all features — chats, notes, docs, and memory. Click any item to jump right back in.
+
+<!-- INSERT IMAGE: Activity Pulse grid on home screen -->
+
+---
+
+## 📖 ChPio Guides
+
+Access the built-in **ChPio Guides** from the notification footer or Command Palette (⌘K → "Chpio Guides"). Includes step-by-step tutorials for every feature:
+
+- Getting Started — set up providers, start chatting
+- Chat Features — thinking mode, memory, Chpio mode, file attachments
+- Notes & Tasks — folders, tasks, pinning, Quick Capture
+- Documents — rich text editor, export options
+- Deep Research — how the pipeline works, Tavily setup
+- Email — IMAP/SMTP setup, AI triage, smart replies
+- Memory — how memory works, tagging, auto-summarize
+- Keyboard Shortcuts — quick reference for all shortcuts
+
+<!-- INSERT IMAGE: ChPio Guides modal showing sidebar and content -->
 
 ---
 
@@ -128,6 +207,44 @@ npm run dev
 2. Enable **OpenAI** or **Together AI** and add your API key (or configure a custom endpoint)
 3. Open **Image Gen** from the bottom dock (⋯ menu)
 4. Type a prompt and click Generate!
+
+---
+
+## 🗺️ Roadmap
+
+### ✅ Completed
+- [x] Multi-provider AI chat with streaming
+- [x] Thinking blocks (reasoning display)
+- [x] Local browser AI via WebLLM/WebGPU
+- [x] Notes & Tasks with folder system
+- [x] Documents with rich text editor
+- [x] Deep Research with Tavily
+- [x] Email client with AI triage
+- [x] Memory store with AI summarization
+- [x] Image generation (OpenAI, Together AI, Pollinations)
+- [x] Projects with skills & instructions
+- [x] Right-click context menus
+- [x] ⌘K Command Palette — global search & navigation
+- [x] ⌘⇧Q Quick Capture — instant note saving
+- [x] ⌘/ Keyboard Shortcuts HUD — table-style reference
+- [x] Focus Mode — distraction-free chat
+- [x] Notification Center — actionable items
+- [x] Activity Pulse — recent activity feed
+- [x] ChPio Guides — built-in tutorial system
+- [x] Enhanced Thinking Indicator — live token count, animated dots
+
+### 🔜 Coming Soon
+- [ ] AI Agent / Tool Use — let AI call tools (search, code execution, file ops)
+- [ ] Code Interpreter — in-browser JS/Python sandbox for data analysis
+- [ ] RAG / Knowledge Base — index documents for retrieval-augmented generation
+- [ ] Voice Interface — speech-to-text and text-to-speech
+- [ ] Workflow Automation — chain AI actions on triggers
+- [ ] Browser Extension — "Ask ChPio" on any webpage
+- [ ] Integrations Hub — connect GitHub, Slack, Notion, Google Drive
+- [ ] Scheduled Tasks — recurring AI jobs (daily digest, weekly research)
+- [ ] Prompt Library — community-shared prompts and templates
+- [ ] Export/Share Chats — public shareable links
+- [ ] Custom Themes — light mode, custom accent colors
 
 ---
 
@@ -208,5 +325,5 @@ MIT ┬─┬ノ( º _ ºノ)
 <p align="center">
   Made with ❤️ and lots of ☕
   <br>
-  <sub>(ﾉ´ヮ`)ﾉ*: ・ﾟ✧ ChPio — Your AI Companion</sub>
+  <sub>(ﾉ´Ŵ`)ﾉ*: ・ﾟ✧ ChPio — Your AI Companion</sub>
 </p>

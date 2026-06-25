@@ -1,7 +1,8 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Sparkles,
+  Palette,
   Download,
   Trash2,
   Copy,
@@ -12,6 +13,8 @@ import {
   Send,
   ChevronDown,
   Check,
+  Maximize2,
+  CheckCircle2,
 } from 'lucide-react';
 import { useImageGenStore, type GeneratedImage } from '../store/imageGenStore';
 import { useSettingsStore } from '../store/settingsStore';
@@ -41,12 +44,15 @@ export default function ImageGenPage() {
   const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
   const setSettingsInitialTab = useAppStore((s) => s.setSettingsInitialTab);
   const setActiveFeature = useAppStore((s) => s.setActiveFeature);
+  const setPendingChatImage = useAppStore((s) => s.setPendingChatImage);
 
   const [prompt, setPrompt] = useState('');
   const [size, setSize] = useState('1024x1024');
   const [quality, setQuality] = useState('standard');
   const [error, setError] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<GeneratedImage | null>(null);
 
   // Dropdown state
   const [providerOpen, setProviderOpen] = useState(false);
@@ -140,20 +146,26 @@ export default function ImageGenPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleUseInChat = (img: GeneratedImage) => {
-    const link = document.createElement('a');
-    link.href = `data:${img.mimeType};base64,${img.imageData}`;
-    link.download = `chpio-${img.id.slice(0, 8)}.png`;
-    link.click();
+  const handleSendToChat = (img: GeneratedImage) => {
+    setPendingChatImage({ base64: img.imageData, mimeType: img.mimeType });
     setActiveFeature('chat');
   };
+
+  const closeFullscreen = useCallback(() => setFullscreenImage(null), []);
+
+  useEffect(() => {
+    if (!fullscreenImage) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeFullscreen(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [fullscreenImage, closeFullscreen]);
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-4 border-b border-white/5">
         <div className="flex items-center gap-2 mb-3">
-          <Sparkles className="w-4 h-4 text-teal-400" />
+          <Palette className="w-4 h-4 text-teal-400" />
           <h1 className="text-sm font-medium text-white">Image Generation</h1>
         </div>
 
@@ -161,7 +173,7 @@ export default function ImageGenPage() {
         {availableProviders.length === 0 && selectedProvider !== 'custom' ? (
           <div className="rounded-lg bg-amber-400/10 border border-amber-400/20 p-3 mb-3">
             <p className="text-xs text-amber-400/70">
-              No image generation providers configured. Enable OpenAI or Together AI, or use a custom endpoint.
+              No image generation providers configured. Enable OpenAI, Together AI, or Pollinations AI in Settings.
             </p>
             <button
               onClick={() => {
@@ -281,7 +293,7 @@ export default function ImageGenPage() {
             {isGenerating ? (
               <LoaderCircle className="w-4 h-4 animate-spin" />
             ) : (
-              <Sparkles className="w-4 h-4" />
+              <Palette className="w-4 h-4" />
             )}
           </GlassButton>
         </div>
@@ -369,12 +381,19 @@ export default function ImageGenPage() {
                   transition={{ duration: 0.2 }}
                   className="rounded-xl overflow-hidden bg-white/5 border border-white/10"
                 >
-                  <div className="aspect-square overflow-hidden">
+                  <div className="aspect-square overflow-hidden relative group">
                     <img
                       src={`data:${img.mimeType};base64,${img.imageData}`}
                       alt={img.prompt}
                       className="w-full h-full object-cover"
                     />
+                    <button
+                      onClick={() => setFullscreenImage(img)}
+                      className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/50 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/70 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                      title="View fullscreen"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                   <div className="p-2 space-y-1.5">
                     <p className="text-[10px] text-white/40 line-clamp-2">{img.prompt}</p>
@@ -391,23 +410,78 @@ export default function ImageGenPage() {
                         className="p-1 rounded text-white/30 hover:text-teal-400 hover:bg-teal-400/10 transition-colors cursor-pointer"
                         title="Copy prompt"
                       >
-                        {copiedId === img.id ? <Copy className="w-3 h-3 text-teal-400" /> : <Copy className="w-3 h-3" />}
+                        <AnimatePresence mode="wait">
+                          {copiedId === img.id ? (
+                            <motion.div
+                              key="check"
+                              initial={{ scale: 0.5, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0.5, opacity: 0 }}
+                              transition={{ duration: 0.15 }}
+                            >
+                              <CheckCircle2 className="w-3 h-3 text-teal-400" />
+                            </motion.div>
+                          ) : (
+                            <motion.div
+                              key="copy"
+                              initial={{ scale: 0.5, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0.5, opacity: 0 }}
+                              transition={{ duration: 0.15 }}
+                            >
+                              <Copy className="w-3 h-3" />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </button>
                       <button
-                        onClick={() => handleUseInChat(img)}
+                        onClick={() => handleSendToChat(img)}
                         className="p-1 rounded text-white/30 hover:text-teal-400 hover:bg-teal-400/10 transition-colors cursor-pointer"
-                        title="Download & switch to chat"
+                        title="Send to chat"
                       >
                         <Send className="w-3 h-3" />
                       </button>
                       <div className="flex-1" />
-                      <button
-                        onClick={() => removeImage(img.id)}
-                        className="p-1 rounded text-white/30 hover:text-red-400 hover:bg-red-400/10 transition-colors cursor-pointer"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+                      <AnimatePresence mode="wait">
+                        {deletingId === img.id ? (
+                          <motion.div
+                            key="confirm"
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 10 }}
+                            transition={{ duration: 0.15 }}
+                            className="flex items-center gap-1"
+                          >
+                            <button
+                              onClick={() => { removeImage(img.id); setDeletingId(null); }}
+                              className="p-1 rounded text-red-400 hover:bg-red-400/10 transition-colors cursor-pointer"
+                              title="Confirm delete"
+                            >
+                              <Check className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => setDeletingId(null)}
+                              className="p-1 rounded text-white/30 hover:text-white/60 hover:bg-white/10 transition-colors cursor-pointer"
+                              title="Cancel"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </motion.div>
+                        ) : (
+                          <motion.button
+                            key="delete"
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -10 }}
+                            transition={{ duration: 0.15 }}
+                            onClick={() => setDeletingId(img.id)}
+                            className="p-1 rounded text-white/30 hover:text-red-400 hover:bg-red-400/10 transition-colors cursor-pointer"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </motion.button>
+                        )}
+                      </AnimatePresence>
                     </div>
                   </div>
                 </motion.div>
@@ -428,6 +502,43 @@ export default function ImageGenPage() {
             Clear all
           </button>
         </div>
+      )}
+
+      {/* Fullscreen overlay */}
+      {fullscreenImage && createPortal(
+        <AnimatePresence>
+          <motion.div
+            key="fullscreen-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[9999] bg-black/90 backdrop-blur-sm flex items-center justify-center"
+            onClick={closeFullscreen}
+          >
+            <motion.img
+              key="fullscreen-image"
+              initial={{ scale: 0.85, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.85, opacity: 0 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              src={`data:${fullscreenImage.mimeType};base64,${fullscreenImage.imageData}`}
+              alt={fullscreenImage.prompt}
+              className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <button
+              onClick={closeFullscreen}
+              className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 max-w-[60vw]">
+              <p className="text-xs text-white/50 text-center truncate">{fullscreenImage.prompt}</p>
+            </div>
+          </motion.div>
+        </AnimatePresence>,
+        document.body,
       )}
     </div>
   );
