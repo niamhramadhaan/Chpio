@@ -2,6 +2,14 @@
 
 > Your self-hosted AI workspace. Chat with any model, write docs, research anything, manage email, generate images — all local-first, privacy-first.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/niamhramadhaan/Chpio?style=flat&color=yellow)](https://github.com/niamhramadhaan/Chpio/stargazers)
+[![GitHub Issues](https://img.shields.io/github/issues/niamhramadhaan/Chpio?style=flat&color=red)](https://github.com/niamhramadhaan/Chpio/issues)
+[![GitHub Last Commit](https://img.shields.io/github/last-commit/niamhramadhaan/Chpio?style=flat&color=blue)](https://github.com/niamhramadhaan/Chpio/commits)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-6-purple?logo=vite&logoColor=white)
+
 <!-- SCREENSHOT: hero.png — full workspace view with chat open, side panel visible, and a nice wallpaper -->
 
 [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md) · [Report a Bug](https://github.com/niamhramadhaan/Chpio/issues/new?template=bug_report.yml) · [Request a Feature](https://github.com/niamhramadhaan/Chpio/issues/new?template=feature_request.yml)
@@ -196,7 +204,21 @@ Contributions welcome! Here's how:
 4. Push to the branch
 5. Open a PR
 
-Check the [open issues](https://github.com/niamhramadhaan/Chpio/issues) for things to work on.
+Check the [open issues](https://github.com/niamhramadhaan/Chpio/issues) for things to work on. If you find a bug or have a feature idea, [open an issue](https://github.com/niamhramadhaan/Chpio/issues/new/choose) first.
+
+---
+
+## Built with
+
+<p align="left">
+  <a href="https://react.dev"><img src="https://img.shields.io/badge/React-19-61dafb?logo=react&logoColor=white" alt="React" /></a>
+  <a href="https://www.typescriptlang.org"><img src="https://img.shields.io/badge/TypeScript-5.7-3178c6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
+  <a href="https://vitejs.dev"><img src="https://img.shields.io/badge/Vite-6-646cff?logo=vite&logoColor=white" alt="Vite" /></a>
+  <a href="https://tailwindcss.com"><img src="https://img.shields.io/badge/Tailwind-3-06b6d4?logo=tailwindcss&logoColor=white" alt="Tailwind" /></a>
+  <a href="https://zustand-demo.pmnd.rs"><img src="https://img.shields.io/badge/Zustand-5-fff?logo=zustand&logoColor=black" alt="Zustand" /></a>
+  <a href="https://tiptap.dev"><img src="https://img.shields.io/badge/TipTap-3-purple" alt="TipTap" /></a>
+  <a href="https://webllm.mlc.ai"><img src="https://img.shields.io/badge/WebLLM-Browser_AI-green" alt="WebLLM" /></a>
+</p>
 
 ---
 
