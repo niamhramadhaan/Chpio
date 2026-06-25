@@ -188,7 +188,7 @@ export default function EmailPage() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 pt-4 pb-2 shrink-0">
+      <div className="px-4 pt-4 pb-2 shrink-0 border-b border-white/5">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <Mail className="w-4 h-4 text-white/30" />

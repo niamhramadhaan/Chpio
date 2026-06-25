@@ -55,6 +55,7 @@ export interface ChatSession {
   activeNoteId?: string;
   goal?: string;
   goalSteps?: string[];
+  goalStatus?: 'active' | 'completed';
   archived: boolean;
   archivedAt?: number;
   starred?: boolean;
@@ -90,10 +91,13 @@ export interface WallpaperOption {
   type?: 'image' | 'video';
 }
 
+export type MemoryType = 'preference' | 'project' | 'goal' | 'pattern' | 'context';
+
 export interface Memory {
   id: string;
   content: string;
   tags: string[];
+  type?: MemoryType;
   createdAt: number;
   updatedAt: number;
 }
@@ -170,6 +174,17 @@ export const DEFAULT_PROVIDERS: ProviderConfig[] = [
     apiKey: '',
     baseUrl: 'https://api.openai.com/v1',
     defaultBaseUrl: 'https://api.openai.com/v1',
+    enabled: false,
+    modelsLastSynced: null,
+    syncedModels: [],
+    favoriteModels: [],
+  },
+  {
+    id: 'pollinations',
+    name: 'Pollinations AI',
+    apiKey: '',
+    baseUrl: 'https://gen.pollinations.ai/v1',
+    defaultBaseUrl: 'https://gen.pollinations.ai/v1',
     enabled: false,
     modelsLastSynced: null,
     syncedModels: [],

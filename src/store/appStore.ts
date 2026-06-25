@@ -27,6 +27,8 @@ interface AppState {
   settingsModalOpen: boolean;
   settingsInitialTab: string | null;
   chpioMode: boolean;
+  focusMode: boolean;
+  pendingChatImage: { base64: string; mimeType: string } | null;
 
   setView: (view: AppView) => void;
   setActiveFeature: (feature: Feature) => void;
@@ -35,6 +37,10 @@ interface AppState {
   setSettingsInitialTab: (tab: string | null) => void;
   setChpioMode: (enabled: boolean) => void;
   toggleChpioMode: () => void;
+  setFocusMode: (enabled: boolean) => void;
+  toggleFocusMode: () => void;
+  setPendingChatImage: (img: { base64: string; mimeType: string } | null) => void;
+  clearPendingChatImage: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -44,6 +50,8 @@ export const useAppStore = create<AppState>((set) => ({
   settingsModalOpen: false,
   settingsInitialTab: null,
   chpioMode: loadChpioMode(),
+  focusMode: false,
+  pendingChatImage: null,
 
   setView: (view) => set({ view }),
   setActiveFeature: (feature) => set({ activeFeature: feature }),
@@ -59,6 +67,10 @@ export const useAppStore = create<AppState>((set) => ({
     saveChpioMode(next);
     return { chpioMode: next };
   }),
+  setFocusMode: (enabled) => set({ focusMode: enabled }),
+  toggleFocusMode: () => set((state) => ({ focusMode: !state.focusMode })),
+  setPendingChatImage: (img) => set({ pendingChatImage: img }),
+  clearPendingChatImage: () => set({ pendingChatImage: null }),
 }));
 
 export function useIsMobile() {

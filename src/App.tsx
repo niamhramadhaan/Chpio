@@ -14,6 +14,12 @@ import { ChatPage } from './pages/ChatPage';
 import { BottomDock } from './components/BottomDock';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastContainer } from './components/Toast';
+import { CommandPalette } from './components/CommandPalette';
+import { QuickCapture } from './components/QuickCapture';
+import { FocusModeOverlay } from './components/FocusModeOverlay';
+import { ShortcutsHUD } from './components/ShortcutsHUD';
+import { ActivityPulse } from './components/ActivityPulse';
+import { ChpioGuides } from './components/ChpioGuides';
 import { getActiveModels } from './utils/models';
 import { relativeTime } from './utils/relativeTime';
 import type { ChatSession } from './types';
@@ -66,6 +72,11 @@ export default function App() {
       <ProfileModal />
       <SettingsModal />
       <ToastContainer />
+      <CommandPalette />
+      <QuickCapture />
+      <FocusModeOverlay />
+      <ShortcutsHUD />
+      <ChpioGuides />
     </div>
   );
 }
@@ -210,6 +221,8 @@ function OnboardingView() {
         </motion.div>
       )}
 
+      <ActivityPulse />
+
       <OnboardingFooter />
     </motion.div>
   );
@@ -218,7 +231,17 @@ function OnboardingView() {
 function WorkspaceView() {
   const isMobile = useIsMobile();
   const activeFeature = useAppStore((s) => s.activeFeature);
+  const focusMode = useAppStore((s) => s.focusMode);
   const showChat = activeFeature === 'chat';
+
+  const chatContent = (
+    <>
+      <ChatPage />
+      <div className={`shrink-0 ${focusMode && showChat ? 'px-4 pb-8' : 'p-3 sm:p-5'}`}>
+        <CommandBar />
+      </div>
+    </>
+  );
 
   return (
     <motion.div
@@ -228,19 +251,23 @@ function WorkspaceView() {
       transition={{ duration: 0.4 }}
       className="relative z-10 w-full h-full flex flex-col lg:flex-row"
     >
-      {/* Chat column — hidden on mobile when a feature panel is open */}
-      <div className={`flex-1 flex flex-col min-h-0 min-w-0 relative ${isMobile && !showChat ? 'hidden' : ''}`}>
-        <ChatPage />
-        <div className="shrink-0 p-3 sm:p-5">
-          <CommandBar />
+      {focusMode && showChat ? (
+        <div className="flex-1 flex justify-center min-h-0">
+          <div className="w-full max-w-2xl flex flex-col min-h-0 min-w-0 relative">
+            {chatContent}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className={`flex-1 flex flex-col min-h-0 min-w-0 relative ${isMobile && !showChat ? 'hidden' : ''}`}>
+          {chatContent}
+        </div>
+      )}
 
-      {/* Right panel — on mobile, only shown when a feature is active */}
-      {(!isMobile || !showChat) && <RightPanel />}
+      {/* Right panel — hidden in focus mode or on mobile when chat is shown */}
+      {!focusMode && (!isMobile || !showChat) && <RightPanel />}
 
-      {/* Mobile bottom dock — always visible on mobile when in chat view */}
-      {isMobile && showChat && (
+      {/* Mobile bottom dock — always visible on mobile when in chat view (hidden in focus mode) */}
+      {!focusMode && isMobile && showChat && (
         <div className="shrink-0 border-t border-white/5 bg-[#0f1413]/80 backdrop-blur-md safe-bottom">
           <BottomDock />
         </div>

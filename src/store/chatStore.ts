@@ -55,6 +55,7 @@ interface ChatState {
   clearActiveNote: (sessionId: string) => void;
   setGoal: (sessionId: string, goal: string, steps?: string[]) => void;
   clearGoal: (sessionId: string) => void;
+  setGoalStatus: (sessionId: string, status: 'active' | 'completed') => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -285,7 +286,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   setGoal: (sessionId, goal, steps) => {
     const sessions = get().sessions.map((s) =>
-      s.id === sessionId ? { ...s, goal, goalSteps: steps || [], updatedAt: Date.now() } : s
+      s.id === sessionId ? { ...s, goal, goalSteps: steps || [], goalStatus: 'active' as const, updatedAt: Date.now() } : s
     );
     saveSessions(sessions);
     set({ sessions });
@@ -293,7 +294,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearGoal: (sessionId) => {
     const sessions = get().sessions.map((s) =>
-      s.id === sessionId ? { ...s, goal: undefined, goalSteps: undefined, updatedAt: Date.now() } : s
+      s.id === sessionId ? { ...s, goal: undefined, goalSteps: undefined, goalStatus: undefined, updatedAt: Date.now() } : s
+    );
+    saveSessions(sessions);
+    set({ sessions });
+  },
+
+  setGoalStatus: (sessionId, status) => {
+    const sessions = get().sessions.map((s) =>
+      s.id === sessionId ? { ...s, goalStatus: status, updatedAt: Date.now() } : s
     );
     saveSessions(sessions);
     set({ sessions });

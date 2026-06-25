@@ -16,6 +16,11 @@ export interface ImageGenProvider {
 }
 
 export const IMAGE_GEN_PROVIDERS: Record<string, ImageGenProvider> = {
+  pollinations: {
+    name: 'Pollinations AI',
+    models: ['flux', 'zimage', 'flux-realism', 'flux-anime', 'flux-3d', 'gptimage', 'seedream'],
+    baseUrl: 'https://gen.pollinations.ai',
+  },
   openai: {
     name: 'OpenAI',
     models: ['gpt-image-1', 'dall-e-3', 'dall-e-2'],
@@ -62,6 +67,9 @@ export async function generateImage(
   customBaseUrl?: string,
   onProgress?: (msg: string) => void,
 ): Promise<ImageGenResult> {
+  if (provider === 'pollinations') {
+    return generatePollinations(prompt, model, settings, apiKey, onProgress);
+  }
   if (provider === 'openai') {
     return generateOpenAI(prompt, apiKey, model, settings, onProgress);
   }
@@ -72,6 +80,35 @@ export async function generateImage(
     return generateCustom(prompt, apiKey, model, settings, customBaseUrl || '', onProgress);
   }
   throw new Error(`Unsupported image generation provider: ${provider}`);
+}
+
+async function generatePollinations(
+  prompt: string,
+  model: string,
+  settings: ImageGenSettings,
+  apiKey: string,
+  onProgress?: (msg: string) => void,
+): Promise<ImageGenResult> {
+  onProgress?.('Calling Pollinations AI...');
+
+  const [w, h] = (settings.size || '1024x1024').split('x').map(Number);
+  const seed = Math.floor(Math.random() * 2147483647);
+  const modelParam = model || 'flux';
+  const url = `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?width=${w || 1024}&height=${h || 1024}&model=${modelParam}&seed=${seed}&nologo=true`;
+
+  const res = await fetch(url, {
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Pollinations error: ${res.status} ${err}`);
+  }
+
+  const blob = await res.blob();
+  const base64 = await blobToBase64(blob);
+  return { imageData: base64, mimeType: blob.type || 'image/jpeg' };
 }
 
 async function generateOpenAI(

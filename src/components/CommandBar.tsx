@@ -47,6 +47,8 @@ export function CommandBar() {
   const setActiveFeature = useAppStore((s) => s.setActiveFeature);
   const chpioMode = useAppStore((s) => s.chpioMode);
   const toggleChpioMode = useAppStore((s) => s.toggleChpioMode);
+  const pendingChatImage = useAppStore((s) => s.pendingChatImage);
+  const clearPendingChatImage = useAppStore((s) => s.clearPendingChatImage);
   const createSession = useChatStore((s) => s.createSession);
   const addMessage = useChatStore((s) => s.addMessage);
   const updateLastAssistantMessage = useChatStore((s) => s.updateLastAssistantMessage);
@@ -85,6 +87,19 @@ export function CommandBar() {
   const providerTriggerRef = useRef<HTMLDivElement>(null);
   const docPickerRef = useRef<HTMLDivElement>(null);
   const dragCounter = useRef(0);
+
+  // Pick up image sent from Image Gen panel
+  useEffect(() => {
+    if (!pendingChatImage) return;
+    setAttachedFile({
+      name: 'generated-image.png',
+      text: '',
+      base64: pendingChatImage.base64,
+      mimeType: pendingChatImage.mimeType,
+    });
+    clearPendingChatImage();
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [pendingChatImage, clearPendingChatImage]);
 
   const docs = useDocsStore((s) => s.docs);
   const memories = useMemoryStore((s) => s.memories);

@@ -145,7 +145,7 @@ export function FileThumbnail({
             loading="lazy"
             decoding="async"
             className={cx(
-              "absolute inset-0 block w-full h-full object-cover transition-[opacity,filter] duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+              "absolute inset-0 block w-full h-full object-cover transition-[opacity,filter] duration-150 ease-out motion-reduce:transition-none",
               showLoading ? "opacity-0 blur-sm" : "blur-0 opacity-100"
             )}
             onLoad={(event) => {
@@ -166,7 +166,7 @@ export function FileThumbnail({
         {previewContent ? (
           <div
             className={cx(
-              "absolute inset-0 w-full h-full transition-[opacity,filter] duration-[160ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+              "absolute inset-0 w-full h-full transition-[opacity,filter] duration-150 ease-out motion-reduce:transition-none",
               showLoading ? "opacity-0 blur-sm" : "blur-0 opacity-100"
             )}
           >

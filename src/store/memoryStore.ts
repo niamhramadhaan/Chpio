@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Memory } from '../types';
+import type { Memory, MemoryType } from '../types';
 
 const STORAGE_KEY = 'chpio-memories';
 
@@ -28,10 +28,11 @@ function saveMemories(memories: Memory[]) {
 interface MemoryState {
   memories: Memory[];
   activeTag: string | null;
-  createMemory: (content: string, tags: string[]) => string;
-  updateMemory: (id: string, updates: Partial<Pick<Memory, 'content' | 'tags'>>) => void;
+  createMemory: (content: string, tags: string[], type?: MemoryType) => string;
+  updateMemory: (id: string, updates: Partial<Pick<Memory, 'content' | 'tags' | 'type'>>) => void;
   deleteMemory: (id: string) => void;
   searchMemories: (query: string) => Memory[];
+  getMemoriesByType: (type: MemoryType) => Memory[];
   setActiveTag: (tag: string | null) => void;
   getFilteredMemories: () => Memory[];
 }
@@ -40,12 +41,13 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
   memories: loadMemories(),
   activeTag: null,
 
-  createMemory: (content, tags) => {
+  createMemory: (content, tags, type) => {
     const id = crypto.randomUUID();
     const memory: Memory = {
       id,
       content,
       tags,
+      type,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -77,6 +79,10 @@ export const useMemoryStore = create<MemoryState>((set, get) => ({
         m.content.toLowerCase().includes(q) ||
         m.tags.some((t) => t.toLowerCase().includes(q))
     );
+  },
+
+  getMemoriesByType: (type) => {
+    return get().memories.filter((m) => m.type === type);
   },
 
   setActiveTag: (tag) => set({ activeTag: tag }),

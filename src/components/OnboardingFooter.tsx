@@ -5,6 +5,7 @@ import type { DotLottie } from '@lottiefiles/dotlottie-web';
 import { useSettingsStore } from '../store/settingsStore';
 import { useAppStore } from '../store/appStore';
 import { ClockWidget } from './ClockWidget';
+import { NotificationCenter } from './NotificationCenter';
 import chpioAvatar from '../assets/chpio-avatar.json';
 
 export function OnboardingFooter() {
@@ -43,6 +44,10 @@ export function OnboardingFooter() {
             {user.name}
           </span>
         </button>
+
+        <div className="w-px h-4 bg-white/10" />
+
+        <NotificationCenter />
 
         <div className="w-px h-4 bg-white/10" />
 

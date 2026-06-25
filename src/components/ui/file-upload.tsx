@@ -135,7 +135,7 @@ function UploadIconCluster({
         <Card
           key={item.label}
           className={cn(
-            "absolute top-1/2 left-1/2 grid w-12 h-12 place-items-center rounded-xl bg-white/5 text-white/50 transition-[transform,color,background-color] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] before:rounded-[calc(var(--radius-xl)-1px)] dark:bg-[#1A201F]/80 dark:text-white/50",
+            "absolute top-1/2 left-1/2 grid w-12 h-12 place-items-center rounded-xl bg-white/5 text-white/50 transition-[transform,color,background-color] duration-500 ease-out before:rounded-[calc(var(--radius-xl)-1px)] dark:bg-[#1A201F]/80 dark:text-white/50",
             "motion-reduce:transition-none",
             index === 1 && "z-10",
             isDragging &&

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   RefreshCw, Eye, EyeOff, ChevronDown, ChevronUp, Zap, Power, PowerOff,
   Check, Settings as SettingsIcon, Palette, Server, CheckCircle2, XCircle, Star,
-  Search, RotateCcw, X, ExternalLink, Mail, Cpu, Download, Sparkles,
+  Search, RotateCcw, X, ExternalLink, Mail, Cpu, Download, Wand2,
 } from 'lucide-react';
 import { useSettingsStore } from '../store/settingsStore';
 import { useEmailStore } from '../store/emailStore';
@@ -26,6 +26,7 @@ import type { ProviderConfig } from '../types';
 const PROVIDER_LOGOS: Record<string, string> = {
   openrouter: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/openrouter.svg',
   openai: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/openai.svg',
+  pollinations: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMTAiIGZpbGw9IiMxMEI5ODEiLz48dGV4dCB4PSI2IiB5PSIxOCIgZm9udC1zaXplPSIxNiIgZm9udC1mYW1pbHk9IkFyaWFsLHNhbnMtc2VyaWYiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSI+UDwvdGV4dD48L3N2Zz4=',
   copilot: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/github.svg',
   ollama: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/ollama.svg',
   llamacpp: 'https://cdn.jsdelivr.net/npm/simple-icons@latest/icons/cplusplus.svg',
@@ -57,11 +58,11 @@ export function SettingsModal() {
     { id: 'providers', label: 'Providers', icon: Server },
     { id: 'local', label: 'Local', icon: Cpu },
     { id: 'defaultModel', label: 'Default Model', icon: SettingsIcon },
-    { id: 'wallpaper', label: 'Wallpaper', icon: Palette },
+    { id: 'imagegen', label: 'Image Gen', icon: Wand2 },
     { id: 'research', label: 'Research', icon: Search },
     { id: 'email', label: 'Email', icon: Mail },
+    { id: 'wallpaper', label: 'Wallpaper', icon: Palette },
     { id: 'data', label: 'Data', icon: Download },
-    { id: 'imagegen', label: 'Image Gen', icon: Sparkles },
   ];
 
   return (
@@ -152,6 +153,13 @@ function ImageGenSettingsTab() {
   const imageGenProviders = useMemo(() => {
     return [
       {
+        id: 'pollinations',
+        name: 'Pollinations AI',
+        models: ['flux', 'zimage', 'flux-realism', 'flux-anime', 'flux-3d', 'gptimage', 'seedream'],
+        description: 'Free tier, get key at enter.pollinations.ai',
+        alwaysReady: false,
+      },
+      {
         id: 'openai',
         name: 'OpenAI',
         models: ['gpt-image-1', 'dall-e-3', 'dall-e-2'],
@@ -184,6 +192,7 @@ function ImageGenSettingsTab() {
           {imageGenProviders.map((provider) => {
             const mainProvider = providers.find((p) => p.id === provider.id);
             const isCustom = provider.id === 'custom';
+            const isPollinations = provider.id === 'pollinations';
             const isReady = isCustom
               ? !!customProvider.baseUrl
               : mainProvider?.enabled && mainProvider?.apiKey;
@@ -202,6 +211,16 @@ function ImageGenSettingsTab() {
                       <span className="text-[9px] px-1.5 py-0.5 rounded bg-teal-400/15 text-teal-400 font-medium">Ready</span>
                     ) : (
                       <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/30 font-medium">{isCustom ? 'Not configured' : 'No key'}</span>
+                    )}
+                    {isPollinations && !isReady && (
+                      <a
+                        href="https://enter.pollinations.ai"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-400/15 text-emerald-400 font-medium hover:bg-emerald-400/25 transition-colors"
+                      >
+                        Get free key
+                      </a>
                     )}
                   </div>
                   {isReady && (
@@ -223,7 +242,9 @@ function ImageGenSettingsTab() {
                 )}
                 {!isReady && !isCustom && (
                   <p className="text-[10px] text-white/20 mt-2">
-                    Enable in Settings → Providers and add API key
+                    {isPollinations
+                      ? 'Enable in Providers and add your free key from enter.pollinations.ai'
+                      : 'Enable in Settings → Providers and add API key'}
                   </p>
                 )}
               </div>
