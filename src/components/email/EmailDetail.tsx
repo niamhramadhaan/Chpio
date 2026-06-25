@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { motion } from 'motion/react';
+import DOMPurify from 'dompurify';
 import { Star, Trash2, ArrowLeft, Paperclip, Reply, Forward, FileText, CheckSquare } from 'lucide-react';
 import { useDocsStore } from '../../store/docsStore';
 import { useNotesStore } from '../../store/notesStore';
@@ -180,7 +181,7 @@ export function EmailDetail({ message, onBack, onToggleStar, onDelete, onReply, 
               {showHtml ? (
                 <div
                   className="prose prose-invert prose-xs max-w-none text-[11px] text-white/50 leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: message.htmlBody }}
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(message.htmlBody, { ADD_ATTR: ['target'] }) }}
                 />
               ) : (
                 <p className="text-[11px] text-white/50 leading-relaxed whitespace-pre-wrap">
