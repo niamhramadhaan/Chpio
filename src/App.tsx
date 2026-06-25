@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Router } from 'wouter';
+import { useHashLocation } from 'wouter/use-hash-location';
 import { motion, AnimatePresence } from 'motion/react';
 import { MessageSquare, ChevronDown } from 'lucide-react';
 import { useAppStore, useIsMobile } from './store/appStore';
@@ -22,9 +24,12 @@ import { ActivityPulse } from './components/ActivityPulse';
 import { ChpioGuides } from './components/ChpioGuides';
 import { getActiveModels } from './utils/models';
 import { relativeTime } from './utils/relativeTime';
+import { useRouteSync } from './hooks/useRouteSync';
 import type { ChatSession } from './types';
 
 export default function App() {
+  useRouteSync();
+
   const view = useAppStore((s) => s.view);
   const loadSettings = useSettingsStore((s) => s.loadSettings);
   const autoSyncProviders = useSettingsStore((s) => s.autoSyncProviders);
@@ -39,6 +44,7 @@ export default function App() {
   }, [loadSettings, autoSyncProviders]);
 
   return (
+    <Router hook={useHashLocation}>
     <div className="relative w-full h-screen overflow-hidden">
       {isVideo ? (
         <video
@@ -78,6 +84,7 @@ export default function App() {
       <ShortcutsHUD />
       <ChpioGuides />
     </div>
+    </Router>
   );
 }
 

@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { Settings } from 'lucide-react';
+import { useLocation } from 'wouter';
 import { DotLottieReact } from '@lottiefiles/dotlottie-react';
 import type { DotLottie } from '@lottiefiles/dotlottie-web';
 import { useSettingsStore } from '../store/settingsStore';
@@ -11,11 +12,13 @@ import chpioAvatar from '../assets/chpio-avatar.json';
 export function OnboardingFooter() {
   const user = useSettingsStore((s) => s.user);
   const { setProfileModalOpen, setSettingsModalOpen, setView, setActiveFeature } = useAppStore();
+  const [, navigate] = useLocation();
   const dotLottieRef = useRef<DotLottie | null>(null);
 
   const handleChatClick = () => {
     setActiveFeature('chat');
     setView('workspace');
+    navigate('/chat');
   };
 
   return (

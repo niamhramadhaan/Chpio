@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo, Suspense, useDeferredValue } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLocation } from 'wouter';
 import ReactMarkdown from 'react-markdown';
 import type { Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -86,6 +87,7 @@ export function ChatPage() {
   const setActiveFeature = useAppStore((s) => s.setActiveFeature);
   const focusMode = useAppStore((s) => s.focusMode);
   const isMobile = useIsMobile();
+  const [, navigate] = useLocation();
   const createSession = useChatStore((s) => s.createSession);
   const addMessage = useChatStore((s) => s.addMessage);
   const updateLastAssistantMessage = useChatStore((s) => s.updateLastAssistantMessage);
@@ -350,6 +352,7 @@ export function ChatPage() {
   const handlePromptClick = async (text: string) => {
     setView('workspace');
     setActiveFeature('chat');
+    navigate('/chat');
 
     const modelId = activeModelId;
     if (!modelId) return;
@@ -645,6 +648,7 @@ export function ChatPage() {
           onClick={() => {
             setView('onboarding');
             setActiveFeature('home');
+            navigate('/');
           }}
           className="w-7 h-7 shrink-0"
           whileHover={{ scale: 1.3 }}
@@ -661,7 +665,7 @@ export function ChatPage() {
 
         {isMobile && (
           <button
-            onClick={() => setActiveFeature('notes')}
+            onClick={() => { setActiveFeature('notes'); navigate('/notes'); }}
             className="w-7 h-7 shrink-0 flex items-center justify-center rounded-lg text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors cursor-pointer"
             title="Menu"
           >

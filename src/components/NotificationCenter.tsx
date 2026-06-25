@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'motion/react';
+import { useLocation } from 'wouter';
 import {
   Bell,
   MessageSquare,
@@ -16,6 +17,7 @@ import { useChatStore } from '../store/chatStore';
 import { useNotesStore } from '../store/notesStore';
 import { useMemoryStore } from '../store/memoryStore';
 import { useAppStore } from '../store/appStore';
+import { buildPath } from '../router';
 import type { Feature } from '../types';
 
 interface Notification {
@@ -43,6 +45,7 @@ export function NotificationCenter() {
   const setActiveSession = useChatStore((s) => s.setActiveSession);
   const setActiveNote = useNotesStore((s) => s.setActiveNote);
   const setActiveFolder = useNotesStore((s) => s.setActiveFolder);
+  const [, navigate] = useLocation();
 
   useEffect(() => {
     if (!open) return;
@@ -147,11 +150,14 @@ export function NotificationCenter() {
     setActiveFeature(notification.feature);
     if (notification.feature === 'chat' && notification.actionId) {
       setActiveSession(notification.actionId);
-    }
-    if (notification.feature === 'notes' && notification.actionId) {
+      navigate(buildPath('chat', { sessionId: notification.actionId }));
+    } else if (notification.feature === 'notes' && notification.actionId) {
       setActiveNote(notification.actionId);
       const note = notes.find((n) => n.id === notification.actionId);
       if (note) setActiveFolder(note.folderId);
+      navigate(buildPath('notes', { noteId: notification.actionId }));
+    } else {
+      navigate(buildPath(notification.feature));
     }
     setOpen(false);
   };

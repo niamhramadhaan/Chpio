@@ -1,5 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { motion } from 'motion/react';
+import { useLocation } from 'wouter';
 import { Paperclip, Brain, ArrowUp, ChevronDown, Search, X, Square, BookOpen, Check, Database, Sparkles, AlertCircle, LoaderCircle } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { useChatStore } from '../store/chatStore';
@@ -49,6 +50,7 @@ export function CommandBar() {
   const toggleChpioMode = useAppStore((s) => s.toggleChpioMode);
   const pendingChatImage = useAppStore((s) => s.pendingChatImage);
   const clearPendingChatImage = useAppStore((s) => s.clearPendingChatImage);
+  const [, navigate] = useLocation();
   const createSession = useChatStore((s) => s.createSession);
   const addMessage = useChatStore((s) => s.addMessage);
   const updateLastAssistantMessage = useChatStore((s) => s.updateLastAssistantMessage);
@@ -170,6 +172,7 @@ export function CommandBar() {
     if (isHero) {
       setView('workspace');
       setActiveFeature('chat');
+      navigate('/chat');
     }
 
     const modelId = activeModelId;

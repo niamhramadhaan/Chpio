@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLocation } from 'wouter';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -23,9 +24,11 @@ import {
 import { useDocsStore } from '../store/docsStore';
 import { FileBrowser, type BrowserItem } from '../components/FileBrowser';
 import { DocEditorModal } from '../components/DocEditorModal';
+import { buildPath } from '../router';
 
 export default function DocsPage() {
   const { docs, activeDocId, createDoc, updateDoc, deleteDoc, setActiveDoc, getActiveDoc } = useDocsStore();
+  const [, navigate] = useLocation();
   const [showList, setShowList] = useState(true);
   const [previewMode, setPreviewMode] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -49,13 +52,15 @@ export default function DocsPage() {
     setActiveDoc(id);
     setShowList(false);
     setPreviewMode(false);
-  }, [createDoc, setActiveDoc]);
+    navigate(buildPath('docs', { docId: id }));
+  }, [createDoc, setActiveDoc, navigate]);
 
   const handleSelect = useCallback((id: string) => {
     setActiveDoc(id);
     setShowList(false);
     setPreviewMode(false);
-  }, [setActiveDoc]);
+    navigate(buildPath('docs', { docId: id }));
+  }, [setActiveDoc, navigate]);
 
   const handleContentChange = useCallback((value: string) => {
     if (!activeDocId) return;

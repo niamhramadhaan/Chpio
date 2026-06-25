@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLocation } from 'wouter';
 import {
   Palette,
   Download,
@@ -45,6 +46,7 @@ export default function ImageGenPage() {
   const setSettingsInitialTab = useAppStore((s) => s.setSettingsInitialTab);
   const setActiveFeature = useAppStore((s) => s.setActiveFeature);
   const setPendingChatImage = useAppStore((s) => s.setPendingChatImage);
+  const [, navigate] = useLocation();
 
   const [prompt, setPrompt] = useState('');
   const [size, setSize] = useState('1024x1024');
@@ -149,6 +151,7 @@ export default function ImageGenPage() {
   const handleSendToChat = (img: GeneratedImage) => {
     setPendingChatImage({ base64: img.imageData, mimeType: img.mimeType });
     setActiveFeature('chat');
+    navigate('/chat');
   };
 
   const closeFullscreen = useCallback(() => setFullscreenImage(null), []);

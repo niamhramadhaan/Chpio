@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useLocation } from 'wouter';
 import {
   MessageSquare,
   StickyNote,
@@ -12,6 +13,7 @@ import { useNotesStore } from '../store/notesStore';
 import { useDocsStore } from '../store/docsStore';
 import { useMemoryStore } from '../store/memoryStore';
 import { useAppStore } from '../store/appStore';
+import { buildPath } from '../router';
 import { relativeTime } from '../utils/relativeTime';
 import type { Feature } from '../types';
 
@@ -33,6 +35,7 @@ export function ActivityPulse() {
   const setView = useAppStore((s) => s.setView);
   const setActiveFeature = useAppStore((s) => s.setActiveFeature);
   const setActiveSession = useChatStore((s) => s.setActiveSession);
+  const [, navigate] = useLocation();
   const [open, setOpen] = useState(false);
 
   const items = useMemo(() => {
@@ -113,7 +116,11 @@ export function ActivityPulse() {
     setView('workspace');
     setActiveFeature(item.feature);
     if (item.feature === 'chat') {
-      setActiveSession(item.id.replace('chat-', ''));
+      const sessionId = item.id.replace('chat-', '');
+      setActiveSession(sessionId);
+      navigate(buildPath('chat', { sessionId }));
+    } else {
+      navigate(buildPath(item.feature));
     }
   };
 
