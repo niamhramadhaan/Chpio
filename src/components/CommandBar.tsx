@@ -176,7 +176,11 @@ export function CommandBar() {
     }
 
     const modelId = activeModelId;
-    if (!modelId) return;
+    if (!modelId) {
+      setToast('Add a provider in Settings → Providers to start chatting');
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
 
     const sessionId = isHero ? createSession(modelId) : (useChatStore.getState().activeSessionId || createSession(modelId));
 

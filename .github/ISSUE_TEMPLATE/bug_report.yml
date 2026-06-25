@@ -1,0 +1,87 @@
+name: Bug Report
+description: Report a bug or something that's not working correctly
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please fill out the details below so we can fix it.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: Tell us what went wrong...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we trigger this bug?
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser & OS
+      description: e.g. Chrome 125 on Windows 11, Safari 17 on macOS
+      placeholder: Browser version + OS
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: ChPio version
+      description: Check Settings or the onboarding screen for the version number.
+      placeholder: e.g. v1.0.0
+    validations:
+      required: false
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console errors (optional)
+      description: Open DevTools (F12) → Console tab, copy any red errors.
+      render: shell
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Drag and drop screenshots here to help explain the problem.
+
+  - type: dropdown
+    id: feature
+    attributes:
+      label: Which feature is affected?
+      options:
+        - Chat
+        - Notes
+        - Documents
+        - Deep Research
+        - Email
+        - Image Generation
+        - Memory
+        - Settings
+        - Command Palette
+        - Other
+    validations:
+      required: false

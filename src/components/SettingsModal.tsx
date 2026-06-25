@@ -45,6 +45,7 @@ type Tab = 'providers' | 'local' | 'defaultModel' | 'wallpaper' | 'research' | '
 export function SettingsModal() {
   const { settingsModalOpen, setSettingsModalOpen, settingsInitialTab, setSettingsInitialTab } = useAppStore();
   const [activeTab, setActiveTab] = useState<Tab>('providers');
+  const [tabSearch, setTabSearch] = useState('');
 
   // Use initial tab when provided
   useEffect(() => {
@@ -65,23 +66,37 @@ export function SettingsModal() {
     { id: 'data', label: 'Data', icon: Download },
   ];
 
+  const filteredTabs = tabSearch
+    ? tabs.filter((t) => t.label.toLowerCase().includes(tabSearch.toLowerCase()))
+    : tabs;
+
   return (
     <Modal
       isOpen={settingsModalOpen}
       onClose={() => setSettingsModalOpen(false)}
       title="Settings"
-      className="max-w-3xl h-[520px] overflow-hidden flex flex-col"
+      className="max-w-3xl sm:max-w-4xl h-[80vh] sm:h-[600px] overflow-hidden flex flex-col"
     >
-      <div className="flex gap-4 flex-1 min-h-0">
-        {/* Left sidebar tabs */}
-        <div className="w-44 shrink-0 flex flex-col gap-0.5">
-          {tabs.map((tab) => {
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 flex-1 min-h-0">
+        {/* Sidebar: horizontal scroll on mobile, vertical on desktop */}
+        <div className="flex sm:flex-col gap-0.5 sm:w-44 shrink-0 overflow-x-auto sm:overflow-x-visible scrollbar-none">
+          {/* Search — desktop only */}
+          <div className="hidden sm:block relative mb-1">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20" />
+            <input
+              value={tabSearch}
+              onChange={(e) => setTabSearch(e.target.value)}
+              placeholder="Search..."
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white outline-none placeholder-white/20 focus:border-teal-400/30 transition-colors"
+            />
+          </div>
+          {filteredTabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer text-left ${
+                onClick={() => { setActiveTab(tab.id); setTabSearch(''); }}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer text-left whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'bg-teal-400/15 text-teal-400'
                     : 'text-white/40 hover:text-white/60 hover:bg-white/5'
@@ -94,8 +109,8 @@ export function SettingsModal() {
           })}
         </div>
 
-        {/* Divider */}
-        <div className="w-px bg-white/5 shrink-0" />
+        {/* Divider — horizontal on mobile, vertical on desktop */}
+        <div className="h-px sm:h-auto sm:w-px bg-white/5 shrink-0" />
 
         {/* Content area */}
         <div className="flex-1 overflow-y-auto min-h-0 pr-1">

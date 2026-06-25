@@ -26,6 +26,7 @@ export default function EmailPage() {
   const selectedModelId = useSettingsStore((s) => s.selectedModelId);
   const defaultModelId = useSettingsStore((s) => s.defaultModelId);
   const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
+  const setSettingsInitialTab = useAppStore((s) => s.setSettingsInitialTab);
 
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [composeMode, setComposeMode] = useState<'compose' | 'reply' | 'forward' | null>(null);
@@ -174,7 +175,7 @@ export default function EmailPage() {
           <p className="text-white/40 text-[12px] font-medium mb-1">No email accounts</p>
           <p className="text-white/20 text-[10px] mb-4">Configure your IMAP/SMTP credentials in Settings</p>
           <button
-            onClick={() => setSettingsModalOpen(true)}
+            onClick={() => { setSettingsInitialTab('email'); setSettingsModalOpen(true); }}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-400/10 text-teal-400/80 text-[10px] hover:bg-teal-400/20 hover:text-teal-400 transition-colors cursor-pointer mx-auto"
           >
             <Settings className="w-3 h-3" />

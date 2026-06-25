@@ -20,6 +20,7 @@ export default function ResearchPage() {
   const { sessions, activeSessionId, createSession, updateSession, addStep, updateStep, addSource, addFact, setActiveSession, deleteSession, getActiveSession } = useResearchStore();
   const tavilyApiKey = useSettingsStore((s) => s.tavilyApiKey);
   const setSettingsModalOpen = useAppStore((s) => s.setSettingsModalOpen);
+  const setSettingsInitialTab = useAppStore((s) => s.setSettingsInitialTab);
   const providers = useSettingsStore((s) => s.providers);
   const models = useMemo(() => getActiveModels(providers), [providers]);
   const selectedModelId = useSettingsStore((s) => s.selectedModelId);
@@ -255,7 +256,7 @@ export default function ResearchPage() {
                 onSubmit={handleStart}
                 isRunning={!!isRunning}
                 hasApiKey={!!tavilyApiKey}
-                onOpenSettings={() => setSettingsModalOpen(true)}
+                onOpenSettings={() => { setSettingsInitialTab('research'); setSettingsModalOpen(true); }}
               />
             </motion.div>
           )}
