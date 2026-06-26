@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Search, MessageSquare, Archive, ArchiveRestore, Trash2, FolderKanban, Gamepad2, ArrowLeft, Lightbulb, FileText, Filter, Check, TextSearch, X, Star, ChevronDown } from 'lucide-react';
+import { Plus, Search, MessageSquare, Archive, ArchiveRestore, Trash2, FolderKanban, Gamepad2, ArrowLeft, Lightbulb, FileText, Filter, Check, TextSearch, X, Star, ChevronDown, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useLocation } from 'wouter';
 import { useChatStore } from '../../store/chatStore';
@@ -32,9 +32,11 @@ export function ChatHistoryPanel() {
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(true);
   const [inlineConfirm, setInlineConfirm] = useState<{ id: string; action: 'archive' | 'delete' } | null>(null);
+  const [editingName, setEditingName] = useState(false);
   const [editingSkills, setEditingSkills] = useState(false);
   const [editingInstructions, setEditingInstructions] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
   const [skillsDraft, setSkillsDraft] = useState('');
   const [instructionsDraft, setInstructionsDraft] = useState('');
   const [descriptionDraft, setDescriptionDraft] = useState('');
@@ -137,9 +139,51 @@ export function ChatHistoryPanel() {
             ) : (
               <>
                 <FolderKanban className="w-4 h-4 text-teal-400" />
-                <span className="text-sm font-medium text-white">
-                  {activeProject ? activeProject.name : 'Projects'}
-                </span>
+                {activeProject && editingName ? (
+                  <input
+                    autoFocus
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onBlur={() => {
+                      const trimmed = nameDraft.trim();
+                      if (activeProjectId && trimmed) {
+                        updateProject(activeProjectId, { name: trimmed });
+                      } else {
+                        setNameDraft(activeProject?.name || '');
+                      }
+                      setEditingName(false);
+                    }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === 'Enter') {
+                        const trimmed = nameDraft.trim();
+                        if (activeProjectId && trimmed) {
+                          updateProject(activeProjectId, { name: trimmed });
+                        }
+                        setEditingName(false);
+                      }
+                      if (e.key === 'Escape') {
+                        setNameDraft(activeProject?.name || '');
+                        setEditingName(false);
+                      }
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-sm font-medium text-white bg-transparent outline-none border-b border-white/20 min-w-0 flex-1"
+                  />
+                ) : (
+                  <span
+                    className="text-sm font-medium text-white"
+                    onClick={(e) => {
+                      if (activeProject) {
+                        e.stopPropagation();
+                        setNameDraft(activeProject.name);
+                        setEditingName(true);
+                      }
+                    }}
+                  >
+                    {activeProject ? activeProject.name : 'Projects'}
+                  </span>
+                )}
               </>
             )}
           </div>
@@ -236,7 +280,12 @@ export function ChatHistoryPanel() {
               className="grid grid-cols-2 gap-2 p-1"
             >
               <button
-                onClick={() => createProject('New Project')}
+                onClick={() => {
+                  createProject('New Project');
+                  setProjectView('inside');
+                  setNameDraft('New Project');
+                  setEditingName(true);
+                }}
                 className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-dashed border-white/10 text-white/30 hover:text-white/50 hover:border-white/20 transition-all cursor-pointer"
               >
                 <Plus className="w-5 h-5" />
@@ -301,6 +350,49 @@ export function ChatHistoryPanel() {
                   <button onClick={() => setDeleteConfirm(false)} className="px-2 py-1 rounded text-xs text-white/40 hover:text-white/60 cursor-pointer">Cancel</button>
                 </div>
               )}
+
+              {/* Project Name */}
+              <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/5">
+                {editingName ? (
+                  <input
+                    autoFocus
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onBlur={() => {
+                      const trimmed = nameDraft.trim();
+                      if (activeProjectId && trimmed) {
+                        updateProject(activeProjectId, { name: trimmed });
+                      } else {
+                        setNameDraft(activeProject?.name || '');
+                      }
+                      setEditingName(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        const trimmed = nameDraft.trim();
+                        if (activeProjectId && trimmed) {
+                          updateProject(activeProjectId, { name: trimmed });
+                        }
+                        setEditingName(false);
+                      }
+                      if (e.key === 'Escape') {
+                        setNameDraft(activeProject?.name || '');
+                        setEditingName(false);
+                      }
+                    }}
+                    placeholder="Project name"
+                    className="w-full bg-transparent text-sm font-medium text-white outline-none placeholder-white/20"
+                  />
+                ) : (
+                  <button
+                    onClick={() => { if (activeProject) { setNameDraft(activeProject.name); setEditingName(true); } }}
+                    className="w-full text-left text-sm font-medium text-white/80 hover:text-white transition-colors cursor-pointer flex items-center gap-2 group"
+                  >
+                    <span className="flex-1 truncate">{activeProject.name}</span>
+                    <Pencil className="w-3 h-3 text-white/20 group-hover:text-white/40 transition-colors shrink-0" />
+                  </button>
+                )}
+              </div>
 
               {/* Description */}
               <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/5">
