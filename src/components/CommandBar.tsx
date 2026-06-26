@@ -139,7 +139,10 @@ export function CommandBar() {
   };
 
   const handleSubmit = async () => {
-    if (!input.trim() || isStreaming || isArchived) return;
+    if (!input.trim() || isArchived) return;
+    if (isStreaming) {
+      stopStreaming();
+    }
 
     const message = input.trim();
     const isImage = attachedFile?.base64;
@@ -627,7 +630,7 @@ export function CommandBar() {
             placeholder={isArchived ? 'Archived conversation' : 'Ask anything...'}
             rows={1}
             className={`flex-1 bg-transparent text-white placeholder-white/40 outline-none text-base resize-none min-h-[28px] max-h-[120px] leading-normal ${isArchived ? 'opacity-40 cursor-not-allowed' : ''}`}
-            disabled={isStreaming || isArchived}
+            disabled={isArchived}
           />
 
           <div ref={triggerRef}>

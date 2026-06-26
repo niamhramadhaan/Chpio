@@ -32,7 +32,7 @@ export function ChatHistoryPanel() {
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(true);
   const [inlineConfirm, setInlineConfirm] = useState<{ id: string; action: 'archive' | 'delete' } | null>(null);
-  const [editingName, setEditingName] = useState(false);
+  const [editingName, setEditingName] = useState<'header' | 'detail' | null>(null);
   const [editingSkills, setEditingSkills] = useState(false);
   const [editingInstructions, setEditingInstructions] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
@@ -40,6 +40,8 @@ export function ChatHistoryPanel() {
   const [skillsDraft, setSkillsDraft] = useState('');
   const [instructionsDraft, setInstructionsDraft] = useState('');
   const [descriptionDraft, setDescriptionDraft] = useState('');
+  const [skillsExpanded, setSkillsExpanded] = useState(false);
+  const [instructionsExpanded, setInstructionsExpanded] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -117,78 +119,79 @@ export function ChatHistoryPanel() {
     <div className="flex flex-col h-full">
       {/* Accordion Header */}
       <div className="p-3 border-b border-white/5">
-        <button
-          onClick={() => {
-            if (tab === 'playground') {
-              setTab('projects');
-              setProjectView('list');
-              setActiveProject(null);
-            } else {
-              setTab('playground');
-              setShowArchived(false);
-            }
-          }}
-          className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
-        >
-          <div className="flex items-center gap-2">
-            {tab === 'playground' ? (
-              <>
-                <Gamepad2 className="w-4 h-4 text-teal-400" />
-                <span className="text-sm font-medium text-white">Playground</span>
-              </>
-            ) : (
-              <>
-                <FolderKanban className="w-4 h-4 text-teal-400" />
-                {activeProject && editingName ? (
-                  <input
-                    autoFocus
-                    value={nameDraft}
-                    onChange={(e) => setNameDraft(e.target.value)}
-                    onBlur={() => {
-                      const trimmed = nameDraft.trim();
-                      if (activeProjectId && trimmed) {
-                        updateProject(activeProjectId, { name: trimmed });
-                      } else {
-                        setNameDraft(activeProject?.name || '');
-                      }
-                      setEditingName(false);
-                    }}
-                    onKeyDown={(e) => {
-                      e.stopPropagation();
-                      if (e.key === 'Enter') {
-                        const trimmed = nameDraft.trim();
-                        if (activeProjectId && trimmed) {
-                          updateProject(activeProjectId, { name: trimmed });
-                        }
-                        setEditingName(false);
-                      }
-                      if (e.key === 'Escape') {
-                        setNameDraft(activeProject?.name || '');
-                        setEditingName(false);
-                      }
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-sm font-medium text-white bg-transparent outline-none border-b border-white/20 min-w-0 flex-1"
-                  />
-                ) : (
-                  <span
-                    className="text-sm font-medium text-white"
-                    onClick={(e) => {
-                      if (activeProject) {
-                        e.stopPropagation();
-                        setNameDraft(activeProject.name);
-                        setEditingName(true);
-                      }
-                    }}
-                  >
+        {editingName === 'header' && activeProject ? (
+          <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/5">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <FolderKanban className="w-4 h-4 text-teal-400 shrink-0" />
+              <input
+                autoFocus
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={() => {
+                  const trimmed = nameDraft.trim();
+                  if (activeProjectId && trimmed) {
+                    updateProject(activeProjectId, { name: trimmed });
+                  } else {
+                    setNameDraft(activeProject?.name || '');
+                  }
+                  setEditingName(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const trimmed = nameDraft.trim();
+                    if (activeProjectId && trimmed) {
+                      updateProject(activeProjectId, { name: trimmed });
+                    }
+                    setEditingName(null);
+                  }
+                  if (e.key === 'Escape') {
+                    setNameDraft(activeProject?.name || '');
+                    setEditingName(null);
+                  }
+                }}
+                className="text-sm font-medium text-white bg-transparent outline-none border-b border-white/20 min-w-0 flex-1"
+              />
+            </div>
+            <ChevronDown className="w-4 h-4 text-white/30 rotate-180 shrink-0" />
+          </div>
+        ) : (
+          <button
+            onClick={() => {
+              if (editingName) return;
+              if (activeProject && tab === 'projects') {
+                setNameDraft(activeProject.name);
+                setEditingName('header');
+                return;
+              }
+              if (tab === 'playground') {
+                setTab('projects');
+                setProjectView('list');
+                setActiveProject(null);
+              } else {
+                setTab('playground');
+                setShowArchived(false);
+              }
+            }}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              {tab === 'playground' ? (
+                <>
+                  <Gamepad2 className="w-4 h-4 text-teal-400" />
+                  <span className="text-sm font-medium text-white">Playground</span>
+                </>
+              ) : (
+                <>
+                  <FolderKanban className="w-4 h-4 text-teal-400" />
+                  <span className="text-sm font-medium text-white">
                     {activeProject ? activeProject.name : 'Projects'}
                   </span>
-                )}
-              </>
-            )}
-          </div>
-          <ChevronDown className={`w-4 h-4 text-white/30 transition-transform ${tab === 'projects' ? 'rotate-180' : ''}`} />
-        </button>
+                </>
+              )}
+            </div>
+            <ChevronDown className={`w-4 h-4 text-white/30 transition-transform ${tab === 'projects' ? 'rotate-180' : ''}`} />
+          </button>
+        )}
       </div>
 
       {/* New Chat Button */}
@@ -284,7 +287,7 @@ export function ChatHistoryPanel() {
                   createProject('New Project');
                   setProjectView('inside');
                   setNameDraft('New Project');
-                  setEditingName(true);
+                  setEditingName('detail');
                 }}
                 className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-dashed border-white/10 text-white/30 hover:text-white/50 hover:border-white/20 transition-all cursor-pointer"
               >
@@ -353,7 +356,7 @@ export function ChatHistoryPanel() {
 
               {/* Project Name */}
               <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/5">
-                {editingName ? (
+                {editingName === 'detail' ? (
                   <input
                     autoFocus
                     value={nameDraft}
@@ -365,7 +368,7 @@ export function ChatHistoryPanel() {
                       } else {
                         setNameDraft(activeProject?.name || '');
                       }
-                      setEditingName(false);
+                      setEditingName(null);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -373,11 +376,11 @@ export function ChatHistoryPanel() {
                         if (activeProjectId && trimmed) {
                           updateProject(activeProjectId, { name: trimmed });
                         }
-                        setEditingName(false);
+                        setEditingName(null);
                       }
                       if (e.key === 'Escape') {
                         setNameDraft(activeProject?.name || '');
-                        setEditingName(false);
+                        setEditingName(null);
                       }
                     }}
                     placeholder="Project name"
@@ -385,7 +388,13 @@ export function ChatHistoryPanel() {
                   />
                 ) : (
                   <button
-                    onClick={() => { if (activeProject) { setNameDraft(activeProject.name); setEditingName(true); } }}
+                    type="button"
+                    onClick={() => {
+                      if (activeProject) {
+                        setNameDraft(activeProject.name);
+                        setEditingName('detail');
+                      }
+                    }}
                     className="w-full text-left text-sm font-medium text-white/80 hover:text-white transition-colors cursor-pointer flex items-center gap-2 group"
                   >
                     <span className="flex-1 truncate">{activeProject.name}</span>
@@ -418,70 +427,100 @@ export function ChatHistoryPanel() {
 
               {/* Pinned Cards */}
               <div className="space-y-2">
-                <div className="p-3 rounded-xl bg-white/5 border border-white/5">
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Lightbulb className="w-3.5 h-3.5 text-teal-400" />
-                    <span className="text-xs font-medium text-white/50">Skills</span>
-                  </div>
-                  {editingSkills ? (
-                    <textarea
-                      autoFocus
-                      value={skillsDraft}
-                      onChange={(e) => setSkillsDraft(e.target.value)}
-                      onBlur={() => { if (activeProjectId) updateProject(activeProjectId, { skills: skillsDraft }); setEditingSkills(false); }}
-                      onKeyDown={(e) => { if (e.key === 'Escape') setEditingSkills(false); }}
-                      placeholder="Define project skills..."
-                      className="w-full bg-transparent text-xs text-white/70 outline-none resize-none min-h-[60px] placeholder-white/20"
-                    />
-                  ) : (
-                    <button
-                      onClick={() => { if (activeProject) { setSkillsDraft(activeProject.skills); setEditingSkills(true); } }}
-                      className="w-full text-left text-xs text-white/40 hover:text-white/60 transition-colors cursor-pointer min-h-[40px]"
-                    >
-                      {activeProject.skills || 'Click to add skills...'}
-                    </button>
+                <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
+                  <button
+                    onClick={() => setSkillsExpanded(!skillsExpanded)}
+                    className="w-full flex items-center justify-between p-3 cursor-pointer hover:bg-white/5 transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Lightbulb className="w-3.5 h-3.5 text-teal-400" />
+                      <span className="text-xs font-medium text-white/50">Skills</span>
+                      {activeProject.skills && (
+                        <span className="text-[10px] text-white/25 ml-1">
+                          {activeProject.skills.split(',').map(s => s.trim()).filter(Boolean).length} selected
+                        </span>
+                      )}
+                    </div>
+                    <ChevronDown className={`w-3.5 h-3.5 text-white/30 transition-transform ${skillsExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+                  {skillsExpanded && (
+                    <div className="px-3 pb-3">
+                      {editingSkills ? (
+                        <textarea
+                          autoFocus
+                          value={skillsDraft}
+                          onChange={(e) => setSkillsDraft(e.target.value)}
+                          onBlur={() => { if (activeProjectId) updateProject(activeProjectId, { skills: skillsDraft }); setEditingSkills(false); }}
+                          onKeyDown={(e) => { if (e.key === 'Escape') setEditingSkills(false); }}
+                          placeholder="Define project skills..."
+                          className="w-full bg-transparent text-xs text-white/70 outline-none resize-none min-h-[60px] placeholder-white/20"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => { if (activeProject) { setSkillsDraft(activeProject.skills); setEditingSkills(true); } }}
+                          className="w-full text-left text-xs text-white/40 hover:text-white/60 transition-colors cursor-pointer min-h-[40px]"
+                        >
+                          {activeProject.skills || 'Click to add skills...'}
+                        </button>
+                      )}
+                      <SkillTagSelector
+                        currentSkills={activeProject?.skills || ''}
+                        onToggle={(skill) => {
+                          const current = activeProject?.skills || '';
+                          const skills = current.split(',').map(s => s.trim()).filter(Boolean);
+                          const idx = skills.indexOf(skill);
+                          const updated = idx >= 0
+                            ? skills.filter(s => s !== skill).join(', ')
+                            : [...skills, skill].join(', ');
+                          if (activeProjectId) {
+                            updateProject(activeProjectId, { skills: updated });
+                            setSkillsDraft(updated);
+                          }
+                        }}
+                      />
+                    </div>
                   )}
-                  <SkillTagSelector
-                    currentSkills={activeProject?.skills || ''}
-                    onToggle={(skill) => {
-                      const current = activeProject?.skills || '';
-                      const skills = current.split(',').map(s => s.trim()).filter(Boolean);
-                      const idx = skills.indexOf(skill);
-                      const updated = idx >= 0
-                        ? skills.filter(s => s !== skill).join(', ')
-                        : [...skills, skill].join(', ');
-                      if (activeProjectId) {
-                        updateProject(activeProjectId, { skills: updated });
-                        setSkillsDraft(updated);
-                      }
-                    }}
-                  />
                 </div>
 
-                <div className="p-3 rounded-xl bg-white/5 border border-white/5">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-1.5">
-                      <FileText className="w-3.5 h-3.5 text-teal-400" />
-                      <span className="text-xs font-medium text-white/50">Instructions</span>
+                <div className="rounded-xl bg-white/5 border border-white/5 overflow-hidden">
+                  <button
+                    onClick={() => setInstructionsExpanded(!instructionsExpanded)}
+                    className="w-full flex items-center justify-between p-3 cursor-pointer hover:bg-white/5 transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <FileText className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                      <span className="text-xs font-medium text-white/50 shrink-0">Instructions</span>
+                      {!instructionsExpanded && activeProject.specialInstructions && (
+                        <span className="text-[10px] text-white/25 truncate ml-1">
+                          {activeProject.specialInstructions.length > 50
+                            ? activeProject.specialInstructions.slice(0, 50) + '...'
+                            : activeProject.specialInstructions}
+                        </span>
+                      )}
                     </div>
-                  </div>
-                  {editingInstructions ? (
-                    <textarea
-                      autoFocus
-                      value={instructionsDraft}
-                      onChange={(e) => setInstructionsDraft(e.target.value)}
-                      onBlur={() => { if (activeProjectId) updateProject(activeProjectId, { specialInstructions: instructionsDraft }); setEditingInstructions(false); }}
-                      onKeyDown={(e) => { if (e.key === 'Escape') setEditingInstructions(false); }}
-                      placeholder="Special instructions..."
-                      className="w-full bg-transparent text-xs text-white/70 outline-none resize-none min-h-[60px] placeholder-white/20"
-                    />
-                  ) : (
-                    <button
-                      onClick={() => { if (activeProject) { setInstructionsDraft(activeProject.specialInstructions); setEditingInstructions(true); } }}
-                      className="w-full text-left text-xs text-white/40 hover:text-white/60 transition-colors cursor-pointer min-h-[40px]"
-                    >
-                      {activeProject.specialInstructions || 'Click to add instructions...'}
-                    </button>
+                    <ChevronDown className={`w-3.5 h-3.5 text-white/30 transition-transform shrink-0 ${instructionsExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+                  {instructionsExpanded && (
+                    <div className="px-3 pb-3">
+                      {editingInstructions ? (
+                        <textarea
+                          autoFocus
+                          value={instructionsDraft}
+                          onChange={(e) => setInstructionsDraft(e.target.value)}
+                          onBlur={() => { if (activeProjectId) updateProject(activeProjectId, { specialInstructions: instructionsDraft }); setEditingInstructions(false); }}
+                          onKeyDown={(e) => { if (e.key === 'Escape') setEditingInstructions(false); }}
+                          placeholder="Special instructions..."
+                          className="w-full bg-transparent text-xs text-white/70 outline-none resize-none min-h-[60px] placeholder-white/20"
+                        />
+                      ) : (
+                        <button
+                          onClick={() => { if (activeProject) { setInstructionsDraft(activeProject.specialInstructions); setEditingInstructions(true); } }}
+                          className="w-full text-left text-xs text-white/40 hover:text-white/60 transition-colors cursor-pointer min-h-[40px]"
+                        >
+                          {activeProject.specialInstructions || 'Click to add instructions...'}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
