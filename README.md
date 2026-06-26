@@ -12,11 +12,15 @@
 
 Chat with any model, write docs, research anything, manage email, generate images — all local-first, privacy-first.
 
-<!-- SCREENSHOT: hero.png — full workspace view with chat open, side panel visible, and a nice wallpaper -->
+<img width="720" height="416" alt="Recording 2026-06-26 113755" src="https://github.com/user-attachments/assets/45ff1707-2f6f-4c6b-b306-c32fa47c40be" />
+
 
 [Changelog](CHANGELOG.md) · [Roadmap](ROADMAP.md) · [Report a Bug](https://github.com/niamhramadhaan/Chpio/issues/new?template=bug_report.yml) · [Request a Feature](https://github.com/niamhramadhaan/Chpio/issues/new?template=feature_request.yml)
 
 ---
+
+<img width="540" height="320" alt="Recording 2026-06-26 140249" src="https://github.com/user-attachments/assets/9381430d-12ed-4ef1-9f79-8e729a356336" />
+
 
 ## // What you can do
 
@@ -35,6 +39,8 @@ Chat with any model, write docs, research anything, manage email, generate image
 **Organize with projects** — group chats by project with custom skills and instructions. Give each project its own personality.
 
 **ChPio Mode** — toggle the sparkle button and your AI becomes ChPio — a cool friend with opinions, not a corporate chatbot. It remembers your goals, celebrates wins, and gives you structured choices when you're stuck. More on this below.
+
+<img width="1434" height="1223" alt="image" src="https://github.com/user-attachments/assets/6a6224ba-36d3-43d9-811b-e59d89cde617" />
 
 ---
 
@@ -63,35 +69,36 @@ Bring your own API key from any provider — OpenRouter, OpenAI, Groq, DeepSeek,
 
 ChPio streams responses in real-time, shows the model's thinking process, and lets you edit or regenerate anything.
 
-<!-- GIF: chat-streaming.gif — chat with a streaming response, thinking blocks expanding, then the response completes -->
+<img width="540" height="472" alt="Recording 2026-06-26 134538" src="https://github.com/user-attachments/assets/8f6eecda-0ad3-459d-a146-4a06d15218aa" />
+
 
 Attach files — PDFs, DOCX, images — and the AI reads them. Send a screenshot, drop a contract, or paste a codebase. The context goes straight to the model.
 
-<!-- SCREENSHOT: chat-file-attach.png — chat with a file attachment visible in the message bubble and the AI responding about it -->
+<img width="540" height="470" alt="Recording 2026-06-26 135007" src="https://github.com/user-attachments/assets/c0acd6f7-48cf-4d60-8321-59c51bec0f5f" />
 
 Save important facts to Memory mid-conversation. Next time you chat, ChPio already knows your preferences, project context, and past decisions.
 
-<!-- SCREENSHOT: chat-memory-save.png — the "Save to Memory" action on a message, or the memory save confirmation -->
 
 ### Write & organize
 
 **Notes** — jot things down in pocket-card folders. Add tasks with checkboxes, pin important notes, drag them between folders. Everything's searchable.
 
-<!-- SCREENSHOT: notes-folders.png — notes panel showing pocket-card folders with note counts -->
+<img width="540" height="896" alt="Recording 2026-06-26 114329" src="https://github.com/user-attachments/assets/53905798-2b83-47f2-8af9-619517b65d7d" />
+
 
 Open a note and you get a clean editor with task lists, links, and quick actions — export as text, duplicate, move to another folder, or pin it to your active chat for reference.
 
-<!-- SCREENSHOT: note-editor.png — a note open with tasks, links, and the action bar visible -->
+<img width="540" height="198" alt="Recording 2026-06-26 135508" src="https://github.com/user-attachments/assets/53599259-7769-41bb-8cd4-cfd121939bf8" />
+
 
 **Documents** — a full rich-text editor (ﾉ´Ŵ`)ﾉ*: ・ﾟ✧ with markdown support. Write with tables, code blocks, lists. Preview live. Export as Word (.docx), Markdown, or HTML.
 
-<!-- SCREENSHOT: docs-editor.png — document editor with a rich document open, showing toolbar and preview -->
+<img width="773" height="768" alt="image" src="https://github.com/user-attachments/assets/5bd78ea4-5f96-490b-897c-706061cc3d8e" />
+
 
 ### Research anything
 
 Type a question and ChPio runs a multi-step research pipeline: it plans the search, reads sources, evaluates what's useful, and writes you a structured report. You can expand source cards to see what was extracted, and save the report as a document.
-
-<!-- GIF: research-progress.gif — research running: sources appearing, facts being extracted, report building -->
 
 Needs a [Tavily API key](https://tavily.com) (free: 1000 searches/month). Set it up in **Settings → Research**.
 
@@ -99,11 +106,9 @@ Needs a [Tavily API key](https://tavily.com) (free: 1000 searches/month). Set it
 
 Connect your email account (IMAP/SMTP) and ChPio becomes an AI-powered inbox. It auto-triages each email — urgent, FYI, newsletter, or spam — and extracts topic tags.
 
-<!-- SCREENSHOT: email-inbox.png — email inbox with AI triage badges (urgent/fyi/newsletter) and smart tags -->
+<img width="1537" height="1078" alt="image" src="https://github.com/user-attachments/assets/95cdd4ff-d646-44ee-b0c4-50e43d0e5eeb" />
 
 Compose, reply, forward. Get AI-drafted replies based on the thread context — just hit "Draft" and ChPio writes a response you can edit before sending.
-
-<!-- SCREENSHOT: email-compose.png — compose modal with an AI-drafted reply visible -->
 
 Requires the companion email server (included in `/server`). See [Detailed Setup](#detailed-setup) below.
 
@@ -111,7 +116,7 @@ Requires the companion email server (included in `/server`). See [Detailed Setup
 
 Generate images from text prompts using OpenAI (DALL-E, gpt-image-1), Together AI (FLUX, SDXL), Pollinations, or your own custom endpoint. Download, copy prompts, or send images directly to chat.
 
-<!-- SCREENSHOT: image-gen.png — image generation canvas with a grid of generated images and the prompt bar -->
+<img width="540" height="890" alt="Recording 2026-06-26 115210" src="https://github.com/user-attachments/assets/7f6261e3-2e57-4274-9c67-fc055053f7c9" />
 
 Set up in **Settings → Image Gen**. Open from the bottom dock (⋯ menu).
 
@@ -121,19 +126,21 @@ Run AI models directly in your browser — no API key, no server, no install. Po
 
 Models download on first use (~0.7-2 GB) and get cached locally. Supported: Llama 3.2, Phi-3.5, Qwen2.5, Gemma 2, SmolLM2, and more.
 
-<!-- SCREENSHOT: webllm-running.png — WebLLM model running in browser with the model picker visible -->
+<img width="969" height="774" alt="image" src="https://github.com/user-attachments/assets/351b15e5-c450-47bd-adf7-40b7d0a98048" />
 
 ### Organize with projects
 
 Group related chats under a project. Give each project custom **skills** (what the AI should know) and **instructions** (how it should behave). A coding project gets a different AI personality than a writing project.
 
-<!-- SCREENSHOT: projects.png — project list or a project with its skills/instructions visible -->
+<img width="540" height="364" alt="Recording 2026-06-26 140722" src="https://github.com/user-attachments/assets/60b57422-7539-4459-9b35-e0d0292b424a" />
+
 
 ### ChPio Mode
 
 Most AI assistants are polite robots. ChPio Mode is different — hit the sparkle button and your AI stops being *an assistant* and starts being **yours**. A companion that knows your name, tracks what matters to you, and has opinions about things.
 
-<!-- SCREENSHOT: chpio-mode.png — chat with ChPio mode active, showing the purple sparkle button and a casual AI response with goal tracking -->
+<img width="540" height="434" alt="Recording 2026-06-26 134227" src="https://github.com/user-attachments/assets/61a2df78-9a46-4d2a-9bf4-6e635d2dd2fe" />
+
 
 #### ChPio has moods
 
@@ -171,7 +178,8 @@ Tell ChPio what you're working on. It tracks your goals across sessions, breaks 
 
 **Command Palette** — press `⌘K` to search across all your chats, notes, docs, and memory. Jump to anything instantly.
 
-<!-- GIF: command-palette.gif — pressing ⌘K, typing a search, selecting a result, landing on it -->
+<img width="540" height="318" alt="Recording 2026-06-26 133743" src="https://github.com/user-attachments/assets/0c20975b-afac-485f-8b0e-a37cb2375fe2" />
+
 
 **Keyboard Shortcuts:**
 
