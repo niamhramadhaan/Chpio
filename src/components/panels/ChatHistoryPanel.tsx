@@ -157,6 +157,12 @@ export function ChatHistoryPanel() {
         ) : (
           <button
             onClick={() => {
+              if (editingName) return;
+              if (activeProject && tab === 'projects') {
+                setNameDraft(activeProject.name);
+                setEditingName(true);
+                return;
+              }
               if (tab === 'playground') {
                 setTab('projects');
                 setProjectView('list');
@@ -177,16 +183,7 @@ export function ChatHistoryPanel() {
               ) : (
                 <>
                   <FolderKanban className="w-4 h-4 text-teal-400" />
-                  <span
-                    className="text-sm font-medium text-white"
-                    onClick={(e) => {
-                      if (activeProject) {
-                        e.stopPropagation();
-                        setNameDraft(activeProject.name);
-                        setEditingName(true);
-                      }
-                    }}
-                  >
+                  <span className="text-sm font-medium text-white">
                     {activeProject ? activeProject.name : 'Projects'}
                   </span>
                 </>
@@ -391,7 +388,13 @@ export function ChatHistoryPanel() {
                   />
                 ) : (
                   <button
-                    onClick={() => { if (activeProject) { setNameDraft(activeProject.name); setEditingName(true); } }}
+                    type="button"
+                    onClick={() => {
+                      if (activeProject) {
+                        setNameDraft(activeProject.name);
+                        setEditingName(true);
+                      }
+                    }}
                     className="w-full text-left text-sm font-medium text-white/80 hover:text-white transition-colors cursor-pointer flex items-center gap-2 group"
                   >
                     <span className="flex-1 truncate">{activeProject.name}</span>
