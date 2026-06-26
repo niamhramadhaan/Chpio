@@ -93,8 +93,7 @@ Open a note and you get a clean editor with task lists, links, and quick actions
 
 **Documents** — a full rich-text editor (ﾉ´Ŵ`)ﾉ*: ・ﾟ✧ with markdown support. Write with tables, code blocks, lists. Preview live. Export as Word (.docx), Markdown, or HTML.
 
-<img width="773" height="768" alt="image" src="https://github.com/user-attachments/assets/5bd78ea4-5f96-490b-897c-706061cc3d8e" />
-
+<img width="480" height="282" alt="Recording 2026-06-26 142034" src="https://github.com/user-attachments/assets/13d922a2-0801-4cee-98dc-705ac26bf00f" />
 
 ### Research anything
 
@@ -105,8 +104,6 @@ Needs a [Tavily API key](https://tavily.com) (free: 1000 searches/month). Set it
 ### Your email, smarter
 
 Connect your email account (IMAP/SMTP) and ChPio becomes an AI-powered inbox. It auto-triages each email — urgent, FYI, newsletter, or spam — and extracts topic tags.
-
-<img width="1537" height="1078" alt="image" src="https://github.com/user-attachments/assets/95cdd4ff-d646-44ee-b0c4-50e43d0e5eeb" />
 
 Compose, reply, forward. Get AI-drafted replies based on the thread context — just hit "Draft" and ChPio writes a response you can edit before sending.
 
@@ -126,14 +123,12 @@ Run AI models directly in your browser — no API key, no server, no install. Po
 
 Models download on first use (~0.7-2 GB) and get cached locally. Supported: Llama 3.2, Phi-3.5, Qwen2.5, Gemma 2, SmolLM2, and more.
 
-<img width="969" height="774" alt="image" src="https://github.com/user-attachments/assets/351b15e5-c450-47bd-adf7-40b7d0a98048" />
 
 ### Organize with projects
 
 Group related chats under a project. Give each project custom **skills** (what the AI should know) and **instructions** (how it should behave). A coding project gets a different AI personality than a writing project.
 
 <img width="540" height="364" alt="Recording 2026-06-26 140722" src="https://github.com/user-attachments/assets/60b57422-7539-4459-9b35-e0d0292b424a" />
-
 
 ### ChPio Mode
 
