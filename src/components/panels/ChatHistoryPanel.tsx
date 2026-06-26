@@ -32,7 +32,7 @@ export function ChatHistoryPanel() {
   const [search, setSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(true);
   const [inlineConfirm, setInlineConfirm] = useState<{ id: string; action: 'archive' | 'delete' } | null>(null);
-  const [editingName, setEditingName] = useState(false);
+  const [editingName, setEditingName] = useState<'header' | 'detail' | null>(null);
   const [editingSkills, setEditingSkills] = useState(false);
   const [editingInstructions, setEditingInstructions] = useState(false);
   const [editingDescription, setEditingDescription] = useState(false);
@@ -119,7 +119,7 @@ export function ChatHistoryPanel() {
     <div className="flex flex-col h-full">
       {/* Accordion Header */}
       <div className="p-3 border-b border-white/5">
-        {editingName && activeProject ? (
+        {editingName === 'header' && activeProject ? (
           <div className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/5">
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <FolderKanban className="w-4 h-4 text-teal-400 shrink-0" />
@@ -134,7 +134,7 @@ export function ChatHistoryPanel() {
                   } else {
                     setNameDraft(activeProject?.name || '');
                   }
-                  setEditingName(false);
+                  setEditingName(null);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
@@ -142,11 +142,11 @@ export function ChatHistoryPanel() {
                     if (activeProjectId && trimmed) {
                       updateProject(activeProjectId, { name: trimmed });
                     }
-                    setEditingName(false);
+                    setEditingName(null);
                   }
                   if (e.key === 'Escape') {
                     setNameDraft(activeProject?.name || '');
-                    setEditingName(false);
+                    setEditingName(null);
                   }
                 }}
                 className="text-sm font-medium text-white bg-transparent outline-none border-b border-white/20 min-w-0 flex-1"
@@ -160,7 +160,7 @@ export function ChatHistoryPanel() {
               if (editingName) return;
               if (activeProject && tab === 'projects') {
                 setNameDraft(activeProject.name);
-                setEditingName(true);
+                setEditingName('header');
                 return;
               }
               if (tab === 'playground') {
@@ -287,7 +287,7 @@ export function ChatHistoryPanel() {
                   createProject('New Project');
                   setProjectView('inside');
                   setNameDraft('New Project');
-                  setEditingName(true);
+                  setEditingName('detail');
                 }}
                 className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-dashed border-white/10 text-white/30 hover:text-white/50 hover:border-white/20 transition-all cursor-pointer"
               >
@@ -356,7 +356,7 @@ export function ChatHistoryPanel() {
 
               {/* Project Name */}
               <div className="px-3 py-2 rounded-xl bg-white/5 border border-white/5">
-                {editingName ? (
+                {editingName === 'detail' ? (
                   <input
                     autoFocus
                     value={nameDraft}
@@ -368,7 +368,7 @@ export function ChatHistoryPanel() {
                       } else {
                         setNameDraft(activeProject?.name || '');
                       }
-                      setEditingName(false);
+                      setEditingName(null);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
@@ -376,11 +376,11 @@ export function ChatHistoryPanel() {
                         if (activeProjectId && trimmed) {
                           updateProject(activeProjectId, { name: trimmed });
                         }
-                        setEditingName(false);
+                        setEditingName(null);
                       }
                       if (e.key === 'Escape') {
                         setNameDraft(activeProject?.name || '');
-                        setEditingName(false);
+                        setEditingName(null);
                       }
                     }}
                     placeholder="Project name"
@@ -392,7 +392,7 @@ export function ChatHistoryPanel() {
                     onClick={() => {
                       if (activeProject) {
                         setNameDraft(activeProject.name);
-                        setEditingName(true);
+                        setEditingName('detail');
                       }
                     }}
                     className="w-full text-left text-sm font-medium text-white/80 hover:text-white transition-colors cursor-pointer flex items-center gap-2 group"
