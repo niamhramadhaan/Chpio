@@ -131,13 +131,39 @@ Group related chats under a project. Give each project custom **skills** (what t
 
 ### ChPio Mode
 
-Most AI assistants are polite robots. ChPio Mode is different — toggle it on and your AI develops a personality. It tracks your goals, gives you options instead of open-ended questions, celebrates wins, and remembers what you told it.
-
-It reads your profile (name, title, timezone) and acts like a competent friend, not a customer service agent. It'll say things like "That broke. Let's fix it" instead of "I apologize for the inconvenience."
-
-Toggle it with the sparkle button in the chat input or via `⌘K` → "Toggle ChPio Mode".
+Most AI assistants are polite robots. ChPio Mode is different — hit the sparkle button and your AI stops being *an assistant* and starts being **yours**. A companion that knows your name, tracks what matters to you, and has opinions about things.
 
 <!-- SCREENSHOT: chpio-mode.png — chat with ChPio mode active, showing the purple sparkle button and a casual AI response with goal tracking -->
+
+#### ChPio has moods
+
+```
+  ( ᵔ ᵕ ᵔ )      idle — just vibing, waiting for you
+  (  •̀ ᴖ •́  )     thinking — hold on, working on it
+  (◕‿◕✿)        responding — got something for you
+  (ﾉ◕ヮ◕)ﾉ*:・ﾟ✧  celebrating — goal crushed, let's go
+  (*≧ω≦*)       welcoming — hey, you're back
+```
+
+#### It grows with you
+
+ChPio remembers what you tell it — your projects, your preferences, your goals. Every fact you save, every decision you make, every pattern you follow — it adds up. The more you use it, the more it gets you.
+
+Each session starts fresh, but the memories carry forward. You're not starting over. You're continuing.
+
+#### It has opinions
+
+ChPio doesn't hedge everything. It'll tell you when something's a bad idea. It gives you **structured choices** instead of open-ended questions — pick from options, don't stare at a blank prompt.
+
+When things break: *"That broke. Let's fix it."* Not *"I apologize for the inconvenience."*
+
+When things work: *"Nice, that worked."* The purple glow is the fist bump.
+
+#### Goal tracking
+
+Tell ChPio what you're working on. It tracks your goals across sessions, breaks them into steps, checks in on progress, and celebrates when you finish. The avatar pulses purple — that's the win.
+
+**Toggle it** with the ✨ sparkle button in the chat input, or `⌘K` → "Toggle ChPio Mode".
 
 ---
 
